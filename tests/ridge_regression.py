@@ -93,7 +93,7 @@ if __name__ == "__main__":
         return (u[index] @ var - v[index]) ** 2 + rho * var @ var
 
     models = {
-        i: Model(dim, partial(f, index=i), record_history=True) for i in node_names
+        i: Model(dim, partial(f, index=i)) for i in node_names
     }
 
     """
