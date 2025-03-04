@@ -1,0 +1,52 @@
+import os
+import time
+import numpy as np
+import logging
+from gossip import Gossip
+from .model import Model
+from .algorithm import registry
+
+logging.basicConfig(level=logging.INFO)
+
+
+class Solver:
+    def __init__(
+        self,
+        model: Model,
+        communicator: Gossip,
+    ):
+        self._model = model
+        self._communicator = communicator
+
+    def solve(
+        self,
+        algorithm_name: str,
+        alpha: int | float,
+        gamma: int | float,
+        max_iter: int = 1000,
+        **kwargs,
+    ):
+        algorithm = registry.create(
+            algorithm_name, self._model, self._communicator, alpha, gamma, **kwargs
+        )
+
+        begin = time.perf_counter()
+
+        for k in range(max_iter):
+            algorithm.update_model()
+            algorithm.perform_iteration(k)
+
+        end = time.perf_counter()
+
+        logging.info(
+            f"algorithm: {algorithm_name}, "
+            f"node: {self._communicator.name}, "
+            f"elapsed time: {end - begin:.6f}s"
+        )
+
+    def save_results(self, save_path: str):
+        os.makedirs(save_path, exist_ok=True)
+        np.save(
+            os.path.join(save_path, f"node_{self._communicator.name}.npy"),
+            self._model.x_i_history,
+        )
