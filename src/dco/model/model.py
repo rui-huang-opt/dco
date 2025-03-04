@@ -11,7 +11,7 @@ class Model:
         dim: int,
         f_i: Callable[[NDArray[np.float64]], np.float64],
         g_type: str = "zero",
-        record_history: bool = False
+        record_history: bool = True,
     ):
         self.dim = dim
         self._f_i = f_i
