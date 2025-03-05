@@ -93,3 +93,67 @@ python ridge_regression.py
 
 ### 6. 使用
 对于问题
+
+$$\min_{\boldsymbol{x}\in\mathbb{R}^{n}}\frac{1}{N}\sum_{i=1}^{N
+}f_{i}(\boldsymbol{x})+g(\boldsymbol{x}),$$
+
+where:
+
+* $f_{i}$ is the local objective function specific to agent $i$ depending on its individual data or goals. Importantly, each agent knows only its own function fifi​ and does not have access to the objectives of other agents;
+* $g$ is a nonsmooth, convex regularizer that applies globally to the solution $\boldsymbol{x}$. This term enforces shared constraints or induces certain desirable properties in the solution, such as sparsity or robustness.
+
+#### 1. 建立节点间的通信
+
+```python
+from gossip import creat_gossip_network
+
+node_names = ["1", "2", "3", "4"]
+edge_pairs = [("1", "2"), ("2", "3"), ("2", "4")]
+
+communicators = create_gossip_network(node_names, edge_pairs)
+```
+
+如果你希望通信中存在噪声，可以设置噪声的方差，默认不加噪声
+
+```python
+communicators = create_gossip_network(node_names, edge_pairs, noise_scale=0.005)
+```
+
+#### 2. 构建问题模型
+
+```python
+from dco import Model
+
+models = {i: Model(dim=3, f_i=f[i], g_type="zero") for i in node_names}  # 这里的 f 是你创建的函数字典
+```
+
+其中 **dim** 代表优化问题的变量维度，**f_i** 为局部目标函数，是一个输入参数为 numpy 一位数组，输出为标量的函数；可以指定正则项 **g** 的类型，目前有 "zero" 和 "l1"。
+
+#### 3. 创建求解器
+```python
+from dco import Solver
+
+solvers = [Solver(models[i], communicators[i]) for i in node_names]
+```
+
+#### 4. 将每个求解器传入一个进程里
+
+如果不知道 Python 如何创建进程具体参考 tests 目录里的的实现。
+
+#### 5. 启动所有进程，完成求解
+
+需要在每个进程里执行
+
+```python
+solver.solve(algorithm, alpha, gamma)
+```
+
+其中 algorithm 是指定算法的名称，包括 ```"EXTRA", "NIDS", "DIGing", "AugDGM", "RGT", "WE", "ADMM"``` 以及一些新的算法，暂时不要使用新算法。
+
+alpha 是通信网络的权重，每个节点可以设置不一样；gamma 是梯度下降的步长。
+
+此外可以设置最大迭代步长，默认 1000
+
+```python
+solver.solve(algorithm, alpha, gamma, max_iter=3000)
+```
