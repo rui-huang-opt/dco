@@ -16,5 +16,12 @@ dependencies = [
     "gossip @ git+https://github.com/rui-huang-opt/gossip.git",
 ]
 
+[project.optional-dependencies]
+test = [
+    "matplotlib==3.7.4",
+    "cvxpy==1.6.3",
+    "networkx==3.4.2",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
