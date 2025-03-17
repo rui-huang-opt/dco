@@ -2,7 +2,7 @@ import numpy as np
 from autograd import grad
 from numpy.typing import NDArray
 from typing import Callable
-from .regulizer import registry
+from .regularizer import registry
 
 
 class Model:

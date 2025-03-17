@@ -6,7 +6,7 @@ from typing import Union
 from ..utils import Registry
 
 
-class Regulizer(metaclass=ABCMeta):
+class Regularizer(metaclass=ABCMeta):
     @abstractmethod
     def __call__(self, x: NDArray[np.float64]) -> np.float64: ...
 
@@ -16,11 +16,11 @@ class Regulizer(metaclass=ABCMeta):
     ) -> NDArray[np.float64]: ...
 
 
-registry = Registry[Regulizer]()
+registry = Registry[Regularizer]()
 
 
 @registry.register("zero")
-class Zero(Regulizer):
+class Zero(Regularizer):
     def __call__(self, x: np.ndarray) -> Union[int, float]:
         return 0
 
@@ -29,7 +29,7 @@ class Zero(Regulizer):
 
 
 @registry.register("l1")
-class L1(Regulizer):
+class L1(Regularizer):
     def __init__(self, lam: Union[int, float] = 1):
         self.lam = lam
 
