@@ -11,159 +11,134 @@ from functools import partial
 from dco import Model, Solver
 from gossip import create_gossip_network, Gossip
 
+# Set up directories for figures and results
+script_dir = os.path.dirname(os.path.abspath(__file__))
+fig_dir = os.path.join(script_dir, "figures", "ridge_regression")
+res_dir = os.path.join(script_dir, "results", "ridge_regression")
 
-class NodeDCO(Process):
-    def __init__(
-        self,
-        algorithm: str,
-        model: Model,
-        communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
-        max_iter: int,
-    ):
-        super().__init__()
+# Create directories if they do not exist
+os.makedirs(fig_dir, exist_ok=True)
+os.makedirs(res_dir, exist_ok=True)
 
-        self.algorithm = algorithm
-        self.model = model
-        self.communicator = communicator
-        self.alpha = alpha
-        self.gamma = gamma
-        self.max_iter = max_iter
+# Create a simple graph
+node_names = ["1", "2", "3", "4"]
+edge_pairs = [("1", "2"), ("2", "3"), ("2", "4")]
 
-    def run(self) -> None:
-        solver = Solver(self.model, self.communicator)
-        solver.solve(self.algorithm, self.alpha, self.gamma, self.max_iter)
+n_nodes = len(node_names)
 
-        save_path = f"results/ridge_regression/{self.algorithm}"
-        solver.save_results(save_path)
+# Plot the graph
+graph = nx.Graph()
+graph.add_nodes_from(node_names)
+graph.add_edges_from(edge_pairs)
+
+node_pos = {"1": (0, 1), "2": (0, 0), "3": (-0.8, -0.6), "4": (0.8, -0.6)}
+
+options = {
+    "with_labels": True,
+    "font_size": 20,
+    "node_color": "white",
+    "node_size": 1000,
+    "edgecolors": "black",
+    "linewidths": 1.5,
+    "width": 1.5,
+}
+
+fig, ax = plt.subplots(1, 1)
+ax.set_aspect(1)
+nx.draw(graph, pos=node_pos, ax=ax, **options)
+
+fig.savefig(os.path.join(fig_dir, "graph.png"), dpi=300, bbox_inches="tight")
+
+# Set parameters for ridge regression
+dim = 10
+
+np.random.seed(0)
+
+rho = 0.01
+u = {i: np.random.uniform(-1, 1, dim) for i in node_names}
+x_tilde = {i: 0.1 * (int(i) - 1) * np.ones(dim) for i in node_names}
+epsilon = {i: np.random.normal(0, 5) for i in node_names}
+v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
 
-if __name__ == "__main__":
-    """
-    Graph:
-    1 - 2 - 3
-        |
-        4
-    """
-    N = 4
+def f(var, index):
+    return (u[index] @ var - v[index]) ** 2 + rho * var @ var
 
-    node_names = [f"{i}" for i in range(1, N + 1)]
-    edge_pairs = [("1", "2"), ("2", "3"), ("2", "4")]
 
-    G = nx.Graph()
-    G.add_nodes_from(node_names)
-    G.add_edges_from(edge_pairs)
+models = {i: Model(dim, partial(f, index=i)) for i in node_names}
 
-    node_pos = {"1": (0, 1), "2": (0, 0), "3": (-0.8, -0.6), "4": (0.8, -0.6)}
+# Centralized optimization
+x = cp.Variable(dim)
 
-    options = {
-        "with_labels": True,
-        "font_size": 20,
-        "node_color": "white",
-        "node_size": 1000,
-        "edgecolors": "black",
-        "linewidths": 1.5,
-        "width": 1.5,
-    }
+loss = cp.sum([(u[i] @ x - v[i]) ** 2 for i in node_names]) / n_nodes
+regularizer = rho * cp.sum_squares(x)
 
-    fig, ax = plt.subplots(1, 1)
-    ax.set_aspect(1)
-    nx.draw(G, pos=node_pos, ax=ax, **options)
+prob = cp.Problem(cp.Minimize(loss + regularizer))
+prob.solve(cp.OSQP)
 
-    os.makedirs("figures/ridge_regression", exist_ok=True)
-    fig.savefig("figures/ridge_regression/graph.png", dpi=300, bbox_inches="tight")
+x_star = x.value
 
-    """
-    Ridge regression problem:
-    """
-    T = 2000
-    dim = 10
+# Distributed optimization
+parameters = {
+    "EXTRA": {"alpha": 0.2, "gamma": 0.15, "max_iter": 2000},
+    "NIDS": {"alpha": 0.2, "gamma": 0.15, "max_iter": 2000},
+    "DIGing": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
+    "AugDGM": {"alpha": 0.2, "gamma": 0.07, "max_iter": 2000},
+    "WE": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
+    "RGT": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
+}
 
-    # Ridge regression
-    np.random.seed(0)
 
-    rho = 0.01
-    u = {i: np.random.uniform(-1, 1, dim) for i in node_names}
-    x_tilde = {i: 0.1 * (int(i) - 1) * np.ones(dim) for i in node_names}
-    epsilon = {i: np.random.normal(0, 5) for i in node_names}
-    v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
+def dco_task(
+    algorithm: str,
+    model: Model,
+    communicator: Gossip,
+    alpha: int | float,
+    gamma: int | float,
+    max_iter: int,
+) -> None:
+    solver = Solver(model, communicator)
+    solver.solve(algorithm, alpha, gamma, max_iter)
 
-    def f(var, index):
-        return (u[index] @ var - v[index]) ** 2 + rho * var @ var
+    save_path = os.path.join(res_dir, algorithm)
+    solver.save_results(save_path)
 
-    models = {
-        i: Model(dim, partial(f, index=i)) for i in node_names
-    }
 
-    """
-    Centralized optimization:
-    """
-    x = cp.Variable(dim)
+for alg, params in parameters.items():
+    processes: List[Process] = []
+    gossip_network = create_gossip_network(node_names, edge_pairs, noise_scale=0.005)
 
-    F = cp.sum([(u[i] @ x - v[i]) ** 2 for i in node_names]) / N + rho * cp.sum_squares(
-        x
+    for i in node_names:
+        model = models[i]
+        communicator = gossip_network[i]
+        process = Process(
+            target=dco_task,
+            args=(alg, model, communicator),
+            kwargs=params,
+        )
+        processes.append(process)
+        process.start()
+
+    for process in processes:
+        process.join()
+
+# Plot results
+fig1, ax1 = plt.subplots()
+ax1.set_xlim([0, 2000])
+ax1.set_xlabel("iterations k")
+ax1.set_ylabel("MSE")
+
+line_options = {"linewidth": 3, "linestyle": "--"}
+
+for alg in parameters.keys():
+    results = np.stack(
+        [np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names]
     )
+    mse = np.mean(norm(results - x_star, axis=2) ** 2, axis=0)
 
-    prob = cp.Problem(cp.Minimize(F))
-    prob.solve(cp.OSQP)
+    line, = ax1.semilogy(mse, label=alg, **line_options)
 
-    x_star = x.value
+ax1.legend(loc=(0.7, 0.2))
+ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
-    """
-    Distributed optimization:
-    """
-    algorithms = ["EXTRA", "NIDS", "DIGing", "AugDGM", "WE", "RGT"]
-    alphas = {
-        "EXTRA": 0.2,
-        "NIDS": 0.2,
-        "DIGing": 0.2,
-        "AugDGM": 0.2,
-        "WE": 0.2,
-        "RGT": 0.2,
-    }
-    gammas = {
-        "EXTRA": 0.15,
-        "NIDS": 0.15,
-        "DIGing": 0.06,
-        "AugDGM": 0.07,
-        "WE": 0.06,
-        "RGT": 0.06,
-    }
-
-    for alg in algorithms:
-        gossip_network = create_gossip_network(node_names, edge_pairs, noise_scale=0.005)
-
-        nodes: Dict[str, NodeDCO] = {
-            i: NodeDCO(alg, models[i], gossip_network[i], alphas[alg], gammas[alg], T)
-            for i in node_names
-        }
-
-        for node in nodes.values():
-            node.start()
-
-        for node in nodes.values():
-            node.join()
-
-    """
-    Plotting:
-    """
-    iter_series = np.arange(T)
-
-    fig1, ax1 = plt.subplots()
-    ax1.set_xlim([0, T])
-    ax1.set_xlabel("iterations k")
-    ax1.set_ylabel("MSE")
-
-    for alg in algorithms:
-        results: List[NDArray[np.float64]] = [
-            np.load(f"results/ridge_regression/{alg}/node_{i}.npy") for i in node_names
-        ]
-        mse = sum([norm(result - x_star, ord=2, axis=1) ** 2 for result in results]) / N
-
-        ax1.semilogy(iter_series, mse, label=alg, linewidth=3, linestyle="--")
-
-    ax1.legend(loc=(0.7, 0.2))
-    ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
-
-    fig1.savefig("figures/ridge_regression/mse.png", dpi=300, bbox_inches="tight")
+fig1.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
