@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 from multiprocessing import Process
 from numpy.typing import NDArray
 from numpy.linalg import norm
-from typing import Dict, List
-from functools import partial
+from typing import List
 from dco import Model, Solver
 from gossip import create_gossip_network, Gossip
 
