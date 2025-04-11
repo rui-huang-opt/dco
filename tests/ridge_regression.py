@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
-    edge_pairs = [("1", "2"), ("2", "3"), ("2", "4")]
+    edge_pairs = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
 
     n_nodes = len(node_names)
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     graph.add_nodes_from(node_names)
     graph.add_edges_from(edge_pairs)
 
-    node_pos = {"1": (0, 1), "2": (0, 0), "3": (-0.8, -0.6), "4": (0.8, -0.6)}
+    node_pos = {"1": (0, 1), "2": (1, 1), "3": (1, 0), "4": (0, 0)}
 
     options = {
         "with_labels": True,
@@ -98,18 +98,18 @@ if __name__ == "__main__":
 
     # Distributed optimization
     parameters = {
-        "EXTRA": {"alpha": 0.2, "gamma": 0.15, "max_iter": 2000},
-        "NIDS": {"alpha": 0.2, "gamma": 0.15, "max_iter": 2000},
-        "DIGing": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
-        "AugDGM": {"alpha": 0.2, "gamma": 0.07, "max_iter": 2000},
-        "WE": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
-        "RGT": {"alpha": 0.2, "gamma": 0.06, "max_iter": 2000},
+        "EXTRA": {"alpha": 0.2, "gamma": 0.16, "max_iter": 2000},
+        "NIDS": {"alpha": 0.2, "gamma": 0.21, "max_iter": 2000},
+        "DIGing": {"alpha": 0.2, "gamma": 0.11, "max_iter": 2000},
+        "AugDGM": {"alpha": 0.2, "gamma": 0.31, "max_iter": 2000},
+        "WE": {"alpha": 0.2, "gamma": 0.17, "max_iter": 2000},
+        "RGT": {"alpha": 0.2, "gamma": 0.11, "max_iter": 2000},
     }
 
     for alg, params in parameters.items():
         processes: List[Process] = []
         gossip_network = create_gossip_network(
-            node_names, edge_pairs, noise_scale=0.005
+            node_names, edge_pairs, noise_scale=0.001
         )
 
         for i in node_names:
@@ -125,6 +125,21 @@ if __name__ == "__main__":
             process.join()
 
     # Plot results
+    try:
+        plt.rcParams['text.usetex'] = True  # 使用外部 LaTeX 编译器
+        plt.rcParams['font.family'] = 'serif'  # 设置字体为 LaTeX 的默认 serif 字体
+
+        plt.rcParams.update({
+            'font.size': 14,  # 全局字体大小
+            'axes.titlesize': 16,  # 坐标轴标题字体大小
+            'axes.labelsize': 16,  # 坐标轴标签字体大小
+            'xtick.labelsize': 16,  # x轴刻度标签字体大小
+            'ytick.labelsize': 16,  # y轴刻度标签字体大小
+            'legend.fontsize': 13,  # 图例字体大小
+        })
+    except Exception as e:
+        print(f"Error setting LaTeX parameters: {e}")
+
     fig1, ax1 = plt.subplots()
     ax1.set_xlim([0, 2000])
     ax1.set_xlabel("iterations k")
@@ -140,7 +155,7 @@ if __name__ == "__main__":
 
         (line,) = ax1.semilogy(mse, label=alg, **line_options)
 
-    ax1.legend(loc=(0.7, 0.2))
+    ax1.legend(loc=(0.7, 0.28))
     ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
     fig1.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
