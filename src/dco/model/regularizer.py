@@ -7,7 +7,7 @@ from ..utils import Registry
 
 
 class Regularizer(metaclass=ABCMeta):
-    def __init__(self, lam: Union[int, float]):
+    def __init__(self, lam: int | float):
         if lam <= 0:
             raise ValueError("Lambda must be positive.")
         self._lam = lam
@@ -17,15 +17,15 @@ class Regularizer(metaclass=ABCMeta):
 
     @abstractmethod
     def prox(
-        self, tau: Union[int, float], x: NDArray[np.float64]
+        self, tau: int | float, x: NDArray[np.float64]
     ) -> NDArray[np.float64]: ...
 
     @property
-    def lam(self) -> Union[int, float]:
+    def lam(self) -> int | float:
         return self._lam
 
     @lam.setter
-    def lam(self, value: Union[int, float]):
+    def lam(self, value: int | float):
         if value <= 0:
             raise ValueError("Lambda must be positive.")
         self._lam = value
@@ -36,23 +36,23 @@ registry = Registry[Regularizer]()
 
 @registry.register("zero")
 class Zero(Regularizer):
-    def __init__(self, lam: Union[int, float]):
+    def __init__(self, lam: int | float):
         super().__init__(lam)
 
-    def __call__(self, x: np.ndarray) -> Union[int, float]:
+    def __call__(self, x: np.ndarray) -> int | float:
         return 0
 
-    def prox(self, tau: Union[int, float], x: np.ndarray) -> np.ndarray:
+    def prox(self, tau: int | float, x: np.ndarray) -> np.ndarray:
         return x
 
 
 @registry.register("l1")
 class L1(Regularizer):
-    def __init__(self, lam: Union[int, float]):
+    def __init__(self, lam: int | float):
         super().__init__(lam)
 
-    def __call__(self, x: np.ndarray) -> Union[int, float]:
+    def __call__(self, x: np.ndarray) -> int | float:
         return self._lam * norm(x, ord=1)
 
-    def prox(self, tau: Union[int, float], x: np.ndarray) -> np.ndarray:
+    def prox(self, tau: int | float, x: np.ndarray) -> np.ndarray:
         return np.maximum(np.abs(x) - tau * self._lam, 0) * np.sign(x)

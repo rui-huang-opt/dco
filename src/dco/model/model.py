@@ -12,7 +12,7 @@ class Model:
         f_i: Callable[[NDArray[np.float64]], np.float64],
         g_type: str = "zero",
         record_history: bool = True,
-        lam: Union[int, float] = 1,
+        lam: int | float = 1,
         grad_backend: str = "autograd",
     ):
         self.dim = dim
@@ -62,7 +62,7 @@ class Model:
     def x_i_history(self) -> NDArray[np.float64]:
         return np.array(self._x_i_history)
 
-    def set_g_lam(self, lam: Union[int, float]) -> None:
+    def set_g_lam(self, lam: int | float) -> None:
         self._g.lam = lam
 
     def grad_f_i(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
