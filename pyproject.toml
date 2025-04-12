@@ -18,9 +18,9 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "matplotlib==3.7.4",
-    "cvxpy==1.6.3",
-    "networkx==3.4.2",
+    "matplotlib>=3.10.1",
+    "cvxpy[ECOS]>=1.6.3",
+    "networkx>=3.4.2",
 ]
 
 [tool.setuptools.packages.find]
