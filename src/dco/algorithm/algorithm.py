@@ -363,7 +363,7 @@ class AtcWE(RobustLaplacianBased):
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
         new_s_i = new_x_i - self._gamma * self._model.grad_f_i(new_x_i)
 
-        q_i = new_z_i - new_x_i + self._s_i
+        q_i = new_z_i - new_s_i + self._s_i
 
         error_q_i = self.calculate_consensus_error(q_i)
 
