@@ -1,5 +1,5 @@
 import numpy as np
-from autograd import grad
+from jax import grad, jit
 from numpy.typing import NDArray
 from typing import Callable, Union
 from .regularizer import registry
@@ -16,7 +16,7 @@ class Model:
     ):
         self.dim = dim
         self._f_i = f_i
-        self._grad_f_i = grad(f_i)
+        self._grad_f_i = jit(grad(f_i))
         self._g_type = g_type
         self._g = registry.create(g_type, lam)
 
