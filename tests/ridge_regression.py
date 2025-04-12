@@ -13,12 +13,12 @@ from gossip import create_gossip_network, Gossip
 
 def dco_task(
     algorithm: str,
-    dim_p: int,
     u_p: NDArray[np.float64],
     v_p: NDArray[np.float64],
+    communicator: Gossip,
+    dim_p: int,
     rho_p: float,
     r_dir: str,
-    communicator: Gossip,
     alpha: int | float,
     gamma: int | float,
     max_iter: int,
@@ -49,31 +49,6 @@ if __name__ == "__main__":
     node_names = ["1", "2", "3", "4"]
     edge_pairs = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
 
-    n_nodes = len(node_names)
-
-    # Plot the graph
-    graph = nx.Graph()
-    graph.add_nodes_from(node_names)
-    graph.add_edges_from(edge_pairs)
-
-    node_pos = {"1": (0, 1), "2": (1, 1), "3": (1, 0), "4": (0, 0)}
-
-    options = {
-        "with_labels": True,
-        "font_size": 20,
-        "node_color": "white",
-        "node_size": 1000,
-        "edgecolors": "black",
-        "linewidths": 1.5,
-        "width": 1.5,
-    }
-
-    fig, ax = plt.subplots(1, 1)
-    ax.set_aspect(1)
-    nx.draw(graph, pos=node_pos, ax=ax, **options)
-
-    fig.savefig(os.path.join(fig_dir, "graph.png"), dpi=300, bbox_inches="tight")
-
     # Set parameters for ridge regression
     dim = 10
 
@@ -88,6 +63,7 @@ if __name__ == "__main__":
     # Centralized optimization
     x = cp.Variable(dim)
 
+    n_nodes = len(node_names)
     loss = cp.sum([(u[i] @ x - v[i]) ** 2 for i in node_names]) / n_nodes
     regularizer = rho * cp.sum_squares(x)
 
@@ -97,16 +73,19 @@ if __name__ == "__main__":
     x_star = x.value
 
     # Distributed optimization
-    parameters = {
-        "EXTRA": {"alpha": 0.2, "gamma": 0.16, "max_iter": 2000},
-        "NIDS": {"alpha": 0.2, "gamma": 0.21, "max_iter": 2000},
-        "DIGing": {"alpha": 0.2, "gamma": 0.11, "max_iter": 2000},
-        "AugDGM": {"alpha": 0.2, "gamma": 0.31, "max_iter": 2000},
-        "WE": {"alpha": 0.2, "gamma": 0.17, "max_iter": 2000},
-        "RGT": {"alpha": 0.2, "gamma": 0.11, "max_iter": 2000},
+    common_params = {"dim_p": dim, "rho_p": rho, "r_dir": res_dir, "max_iter": 2000}
+    algorithm_configs = {
+        "EXTRA": {"alpha": 0.2, "gamma": 0.16},
+        "NIDS": {"alpha": 0.2, "gamma": 0.21},
+        "DIGing": {"alpha": 0.2, "gamma": 0.11},
+        "AugDGM": {"alpha": 0.2, "gamma": 0.31},
+        "WE": {"alpha": 0.2, "gamma": 0.17},
+        "RGT": {"alpha": 0.2, "gamma": 0.11},
     }
 
-    for alg, params in parameters.items():
+    for alg, params in algorithm_configs.items():
+        params |= common_params
+
         processes: List[Process] = []
         gossip_network = create_gossip_network(
             node_names, edge_pairs, noise_scale=0.001
@@ -115,7 +94,7 @@ if __name__ == "__main__":
         for i in node_names:
             process = Process(
                 target=dco_task,
-                args=(alg, dim, u[i], v[i], rho, res_dir, gossip_network[i]),
+                args=(alg, u[i], v[i], gossip_network[i]),
                 kwargs=params,
             )
             processes.append(process)
@@ -126,17 +105,19 @@ if __name__ == "__main__":
 
     # Plot results
     try:
-        plt.rcParams['text.usetex'] = True  # 使用外部 LaTeX 编译器
-        plt.rcParams['font.family'] = 'serif'  # 设置字体为 LaTeX 的默认 serif 字体
+        plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
+        plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
 
-        plt.rcParams.update({
-            'font.size': 14,  # 全局字体大小
-            'axes.titlesize': 16,  # 坐标轴标题字体大小
-            'axes.labelsize': 16,  # 坐标轴标签字体大小
-            'xtick.labelsize': 16,  # x轴刻度标签字体大小
-            'ytick.labelsize': 16,  # y轴刻度标签字体大小
-            'legend.fontsize': 13,  # 图例字体大小
-        })
+        plt.rcParams.update(
+            {
+                "font.size": 14,  # 全局字体大小
+                "axes.titlesize": 16,  # 坐标轴标题字体大小
+                "axes.labelsize": 16,  # 坐标轴标签字体大小
+                "xtick.labelsize": 16,  # x轴刻度标签字体大小
+                "ytick.labelsize": 16,  # y轴刻度标签字体大小
+                "legend.fontsize": 13,  # 图例字体大小
+            }
+        )
     except Exception as e:
         print(f"Error setting LaTeX parameters: {e}")
 
@@ -147,15 +128,16 @@ if __name__ == "__main__":
 
     line_options = {"linewidth": 3, "linestyle": "--"}
 
-    for alg in parameters.keys():
+    for alg in algorithm_configs.keys():
         results = np.stack(
             [np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names]
         )
-        mse = np.mean(norm(results - x_star, axis=2) ** 2, axis=0)
+        mse = np.mean((results - x_star[np.newaxis, np.newaxis, :]) ** 2, axis=(0, 2))
 
         (line,) = ax1.semilogy(mse, label=alg, **line_options)
 
     ax1.legend(loc=(0.7, 0.28))
     ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
+    fig1.savefig(os.path.join(fig_dir, "mse.pdf"), format="pdf", bbox_inches="tight")
     fig1.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
