@@ -1,0 +1,292 @@
+import os
+import numpy as np
+import cvxpy as cp
+import networkx as nx
+import matplotlib.pyplot as plt
+from typing import List
+from multiprocessing import Process
+from numpy.typing import NDArray
+from scipy.fftpack import fft, dct, idct
+from dco import Model, Solver
+from gossip import create_gossip_network, Gossip
+
+
+def dco_task(
+    algorithm: str,
+    theta_p: NDArray[np.float64],
+    y_p: NDArray[np.float64],
+    communicator: Gossip,
+    dim_p: int,
+    lam_p: int | float,
+    r_dir: str,
+    alpha: int | float,
+    gamma: int | float,
+    max_iter: int,
+) -> None:
+    from jax.numpy.linalg import norm
+
+    def f(var):
+        return norm(theta_p @ var - y_p) ** 2
+
+    model = Model(dim_p, f, g_type="l1", lam=lam_p, grad_backend="jax")
+
+    solver = Solver(model, communicator)
+    solver.solve(algorithm, alpha, gamma, max_iter)
+
+    save_path = os.path.join(r_dir, algorithm)
+    solver.save_results(save_path)
+
+    if algorithm == "RAugDGM" and communicator.name == 15:
+        np.save(os.path.join(r_dir, f"recovered_signal.npy"), model.x_i)
+
+
+if __name__ == "__main__":
+    # Set the script type: "centralized", "distributed", or "plot results"
+    script_type = "plot results"
+
+    # Set up directories for figures and results
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    fig_dir = os.path.join(script_dir, "figures", "compressed_sensing")
+    res_dir = os.path.join(script_dir, "results", "compressed_sensing")
+
+    # Create directories if they do not exist
+    os.makedirs(fig_dir, exist_ok=True)
+    os.makedirs(res_dir, exist_ok=True)
+
+    # Sensors communication topology
+    n_sens = 16
+
+    sens_pos = {i: (i // 4, i % 4) for i in range(n_sens)}
+    radius = 1
+
+    graph = nx.random_geometric_graph(n_sens, radius, pos=sens_pos)
+
+    sens_names = graph.nodes
+    edge_pairs = graph.edges
+
+    # Original signal
+    n = 4096
+    t = np.linspace(0, 1, n)
+    x = np.cos(2 * 97 * np.pi * t) + np.cos(2 * 777 * np.pi * t)
+    xt = fft(x)
+    psd = (np.abs(xt) ** 2) / n
+
+    # Signal sampling
+    np.random.seed(3)
+    p_total = 128
+    p_sens = p_total // n_sens
+    perm = {i: np.round(np.random.rand(p_sens) * n).astype(int) for i in sens_names}
+    y = {i: x[perm[i]] for i in sens_names}
+
+    # Sensing matrix and regularization parameter
+    Psi = dct(np.eye(n), norm="ortho")
+    Theta = {i: Psi[perm[i], :] for i in sens_names}
+    lam = 0.01
+
+    # Centralized optimization
+    if script_type == "centralized":
+        s_hat = cp.Variable(n)
+        cost = sum(
+            [cp.norm2(Theta[i] @ s_hat - y[i]) ** 2 for i in sens_names]
+        ) / n_sens + lam * cp.norm1(s_hat)
+        prob = cp.Problem(cp.Minimize(cost))
+        prob.solve(solver=cp.ECOS)
+
+        s_hat_star = s_hat.value
+        np.save(os.path.join(res_dir, "s_hat_star.npy"), s_hat_star)
+
+    # Distributed optimization
+    elif script_type == "distributed":
+        common_params = {"dim_p": n, "lam_p": lam, "r_dir": res_dir, "max_iter": 7000}
+        algorithm_configs = {
+            "WE": {"alpha": 0.1, "gamma": 0.893},
+            "AtcWE": {"alpha": 0.1, "gamma": 1.123},
+            "RGT": {"alpha": 0.1, "gamma": 0.656},
+            "RAugDGM": {"alpha": 0.1, "gamma": 1.358},
+        }
+
+        processes: List[Process] = []
+        gossip_network = create_gossip_network(
+            sens_names, edge_pairs, noise_scale=0.005
+        )
+
+        alg = "RAugDGM"
+        params = algorithm_configs[alg] | common_params
+
+        for i in sens_names:
+            process = Process(
+                target=dco_task,
+                args=(alg, Theta[i], y[i], gossip_network[i]),
+                kwargs=params,
+            )
+            processes.append(process)
+            process.start()
+
+        for process in processes:
+            process.join()
+
+    # Plot results
+    elif script_type == "plot results":
+        s_hat_star = np.load(os.path.join(res_dir, "s_hat_star.npy"))
+
+        try:
+            plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
+            plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
+
+            plt.rcParams.update(
+                {
+                    "font.size": 14,  # 全局字体大小
+                    "axes.titlesize": 16,  # 坐标轴标题字体大小
+                    "axes.labelsize": 16,  # 坐标轴标签字体大小
+                    "xtick.labelsize": 16,  # x轴刻度标签字体大小
+                    "ytick.labelsize": 16,  # y轴刻度标签字体大小
+                    "legend.fontsize": 13,  # 图例字体大小
+                }
+            )
+        except Exception as e:
+            print(f"Error setting LaTeX parameters: {e}")
+
+        fig1, ax1 = plt.subplots()
+        ax1.set_xlim([0, n // 2])
+        ax1.set_ylim([0, 1200])
+        ax1.set_xlabel("Frequency (Hz)")
+
+        ax1.plot(psd[: n // 2], "k")
+
+        fig1.savefig(
+            os.path.join(fig_dir, "origin_signal.pdf"),
+            format="pdf",
+            bbox_inches="tight",
+        )
+        fig1.savefig(
+            os.path.join(fig_dir, "origin_signal.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        fig2, ax2 = plt.subplots(1, 1)
+        ax2.set_aspect(1)
+
+        cmap = plt.colormaps.get_cmap("YlGnBu")
+
+        discrete_cmap = cmap.resampled(n_sens)
+        sens_color = [discrete_cmap(i / (n_sens - 1)) for i in range(n_sens)]
+
+        options = {
+            "ax": ax2,
+            "pos": sens_pos,
+            "with_labels": False,
+            "font_size": 20,
+            "node_color": sens_color,
+            "node_size": 500,
+            "edgecolors": "black",
+            "linewidths": 1.5,
+            "width": 1.5,
+            "style": "--",
+        }
+
+        nx.draw(graph, **options)
+
+        fig2.savefig(
+            os.path.join(fig_dir, "sensors.pdf"),
+            format="pdf",
+            bbox_inches="tight",
+        )
+        fig2.savefig(
+            os.path.join(fig_dir, "sensors.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        fig3, ax3 = plt.subplots()
+        ax3.set_xlim([0.25, 0.31])
+        ax3.set_ylim([-2, 2])
+
+        ax3.plot(t, x, "k")
+        for i in sens_names:
+            ax3.plot(t[perm[i]], y[i], "x", color=sens_color[i], markeredgewidth=3)
+
+        ax3.set_xlabel("time (s)")
+
+        fig3.savefig(
+            os.path.join(fig_dir, "signal_sampling.pdf"),
+            format="pdf",
+            bbox_inches="tight",
+        )
+        fig3.savefig(
+            os.path.join(fig_dir, "signal_sampling.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        fig4, ax4 = plt.subplots()
+        ax4.set_xlim([0, 7000])
+        ax4.set_xlabel("iterations k")
+        ax4.set_ylabel("MSE")
+
+        line_options = {"linewidth": 3, "linestyle": "--"}
+        algs = ["RAugDGM", "AtcWE", "WE", "RGT"]
+
+        for alg in algs:
+            results = np.stack(
+                [
+                    np.load(os.path.join(res_dir, alg, f"node_{i}.npy"))
+                    for i in sens_names
+                ]
+            )
+            mse = np.mean(
+                (results - s_hat_star[np.newaxis, np.newaxis, :]) ** 2, axis=(0, 2)
+            )
+
+            (line,) = ax4.semilogy(mse, label=alg, **line_options)
+
+        ax4.legend(loc="upper right")
+        ax4.grid(True, which="major", linestyle="-", linewidth=0.8)
+
+        fig4.savefig(
+            os.path.join(fig_dir, "mse.pdf"), format="pdf", bbox_inches="tight"
+        )
+        fig4.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
+
+        fig5, ax5 = plt.subplots()
+
+        recovered_signal = np.load(os.path.join(res_dir, "recovered_signal.npy"))
+        x_recon = idct(recovered_signal, norm="ortho")
+
+        ax5.plot(t, x_recon, color=sens_color[15])
+
+        ax5.set_xlim([0.25, 0.31])
+        ax5.set_ylim([-2, 2])
+        ax5.set_xlabel("time (s)")
+
+        fig5.savefig(
+            os.path.join(fig_dir, "recovered_signal.pdf"),
+            format="pdf",
+            bbox_inches="tight",
+        )
+        fig5.savefig(
+            os.path.join(fig_dir, "recovered_signal.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        fig6, ax6 = plt.subplots()
+
+        x_recon_t = fft(x_recon)
+        psd_recon = (np.abs(x_recon_t) ** 2) / n
+
+        ax6.set_xlim([0, n // 2])
+        ax6.set_ylim([0, 1200])
+        ax6.set_xlabel("Frequency (Hz)")
+        ax6.plot(psd_recon[: n // 2], color=sens_color[15])
+
+        fig6.savefig(
+            os.path.join(fig_dir, "recovered_signal_freq.pdf"),
+            format="pdf",
+            bbox_inches="tight",
+        )
+        fig6.savefig(
+            os.path.join(fig_dir, "recovered_signal_freq.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
