@@ -7,7 +7,6 @@ from typing import List
 from multiprocessing import Process
 from numpy.typing import NDArray
 from scipy.fftpack import fft, dct, idct
-from matplotlib.colors import hsv_to_rgb
 from dco import Model, Solver
 from gossip import create_gossip_network, Gossip
 
