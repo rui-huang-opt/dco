@@ -1,11 +1,9 @@
 import os
 import numpy as np
-import networkx as nx
 import cvxpy as cp
 import matplotlib.pyplot as plt
 from multiprocessing import Process
 from numpy.typing import NDArray
-from numpy.linalg import norm
 from typing import List
 from dco import Model, Solver
 from gossip import create_gossip_network, Gossip
@@ -136,5 +134,9 @@ if __name__ == "__main__":
     ax1.legend(loc=(0.7, 0.28))
     ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
-    fig1.savefig(os.path.join(fig_dir, "mse.pdf"), format="pdf", bbox_inches="tight")
-    fig1.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
+    fig1.savefig(
+        os.path.join(fig_dir, "ridge_regression.pdf"), format="pdf", bbox_inches="tight"
+    )
+    fig1.savefig(
+        os.path.join(fig_dir, "ridge_regression.png"), dpi=300, bbox_inches="tight"
+    )
