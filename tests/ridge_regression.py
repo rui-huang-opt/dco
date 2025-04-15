@@ -104,22 +104,19 @@ if __name__ == "__main__":
             process.join()
 
     # Plot results
-    try:
-        plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
-        plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
+    plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
+    plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
 
-        plt.rcParams.update(
-            {
-                "font.size": 14,  # 全局字体大小
-                "axes.titlesize": 16,  # 坐标轴标题字体大小
-                "axes.labelsize": 16,  # 坐标轴标签字体大小
-                "xtick.labelsize": 16,  # x轴刻度标签字体大小
-                "ytick.labelsize": 16,  # y轴刻度标签字体大小
-                "legend.fontsize": 13,  # 图例字体大小
-            }
-        )
-    except Exception as e:
-        print(f"Error setting LaTeX parameters: {e}")
+    plt.rcParams.update(
+        {
+            "font.size": 14,  # 全局字体大小
+            "axes.titlesize": 16,  # 坐标轴标题字体大小
+            "axes.labelsize": 16,  # 坐标轴标签字体大小
+            "xtick.labelsize": 16,  # x轴刻度标签字体大小
+            "ytick.labelsize": 16,  # y轴刻度标签字体大小
+            "legend.fontsize": 13,  # 图例字体大小
+        }
+    )
 
     fig1, ax1 = plt.subplots()
     ax1.set_xlim([0, 2000])

@@ -7,6 +7,7 @@ from typing import List
 from multiprocessing import Process
 from numpy.typing import NDArray
 from scipy.fftpack import fft, dct, idct
+from matplotlib.colors import hsv_to_rgb
 from dco import Model, Solver
 from gossip import create_gossip_network, Gossip
 
@@ -36,7 +37,7 @@ def dco_task(
     save_path = os.path.join(r_dir, algorithm)
     solver.save_results(save_path)
 
-    if algorithm == "RAugDGM" and communicator.name == 15:
+    if algorithm == "RAugDGM" and communicator.name == 3:
         np.save(os.path.join(r_dir, f"recovered_signal.npy"), model.x_i)
 
 
@@ -129,100 +130,82 @@ if __name__ == "__main__":
     elif script_type == "plot results":
         s_hat_star = np.load(os.path.join(res_dir, "s_hat_star.npy"))
 
-        try:
-            plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
-            plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
+        plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
+        plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
 
-            plt.rcParams.update(
-                {
-                    "font.size": 14,  # 全局字体大小
-                    "axes.titlesize": 16,  # 坐标轴标题字体大小
-                    "axes.labelsize": 16,  # 坐标轴标签字体大小
-                    "xtick.labelsize": 16,  # x轴刻度标签字体大小
-                    "ytick.labelsize": 16,  # y轴刻度标签字体大小
-                    "legend.fontsize": 13,  # 图例字体大小
-                }
-            )
-        except Exception as e:
-            print(f"Error setting LaTeX parameters: {e}")
+        plt.rcParams.update(
+            {
+                "font.size": 14,  # 全局字体大小
+                "axes.titlesize": 16,  # 坐标轴标题字体大小
+                "axes.labelsize": 16,  # 坐标轴标签字体大小
+                "xtick.labelsize": 16,  # x轴刻度标签字体大小
+                "ytick.labelsize": 16,  # y轴刻度标签字体大小
+                "legend.fontsize": 13,  # 图例字体大小
+            }
+        )
+
+        sens_color = [
+            "#1f77b4",  # 蓝色
+            "#ff7f0e",  # 橙色
+            "#2ca02c",  # 绿色
+            "#d62728",  # 红色
+            "#9467bd",  # 紫色
+            "#8c564b",  # 棕色
+            "#e377c2",  # 粉色
+            "#7f7f7f",  # 灰色
+            "#bcbd22",  # 黄绿色
+            "#17becf",  # 青色
+            "#393b79",  # 深蓝
+            "#52519e",  # 蓝紫色
+            "#6b4196",  # 紫罗兰
+            "#85397e",  # 深紫红
+            "#7f4172",  # 梅红色
+            "#7f4e52",  # 深红棕
+        ]
 
         fig1, ax1 = plt.subplots()
-        ax1.set_xlim([0, n // 2])
-        ax1.set_ylim([0, 1200])
-        ax1.set_xlabel("Frequency (Hz)")
+        ax1.set_xlim([0.25, 0.31])
+        ax1.set_ylim([-2, 2])
 
-        ax1.plot(psd[: n // 2], "k")
+        ax1.plot(t, x, "k")
+        for i in sens_names:
+            ax1.plot(t[perm[i]], y[i], "x", color=sens_color[i], markeredgewidth=3)
+
+        ax1.set_xlabel("time (s)")
 
         fig1.savefig(
-            os.path.join(fig_dir, "origin_signal.pdf"),
+            os.path.join(fig_dir, "original_signal.pdf"),
             format="pdf",
             bbox_inches="tight",
         )
         fig1.savefig(
-            os.path.join(fig_dir, "origin_signal.png"),
+            os.path.join(fig_dir, "original_signal.png"),
             dpi=300,
             bbox_inches="tight",
         )
 
-        fig2, ax2 = plt.subplots(1, 1)
-        ax2.set_aspect(1)
+        fig2, ax2 = plt.subplots()
+        ax2.set_xlim([0, n // 2])
+        ax2.set_ylim([0, 1200])
+        ax2.set_xlabel("Frequency (Hz)")
 
-        cmap = plt.colormaps.get_cmap("YlGnBu")
-
-        discrete_cmap = cmap.resampled(n_sens)
-        sens_color = [discrete_cmap(i / (n_sens - 1)) for i in range(n_sens)]
-
-        options = {
-            "ax": ax2,
-            "pos": sens_pos,
-            "with_labels": False,
-            "font_size": 20,
-            "node_color": sens_color,
-            "node_size": 500,
-            "edgecolors": "black",
-            "linewidths": 1.5,
-            "width": 1.5,
-            "style": "--",
-        }
-
-        nx.draw(graph, **options)
+        ax2.plot(psd[: n // 2], "k")
 
         fig2.savefig(
-            os.path.join(fig_dir, "sensors.pdf"),
+            os.path.join(fig_dir, "origin_signal_freq.pdf"),
             format="pdf",
             bbox_inches="tight",
         )
         fig2.savefig(
-            os.path.join(fig_dir, "sensors.png"),
+            os.path.join(fig_dir, "origin_signal_freq.png"),
             dpi=300,
             bbox_inches="tight",
         )
 
         fig3, ax3 = plt.subplots()
-        ax3.set_xlim([0.25, 0.31])
-        ax3.set_ylim([-2, 2])
-
-        ax3.plot(t, x, "k")
-        for i in sens_names:
-            ax3.plot(t[perm[i]], y[i], "x", color=sens_color[i], markeredgewidth=3)
-
-        ax3.set_xlabel("time (s)")
-
-        fig3.savefig(
-            os.path.join(fig_dir, "signal_sampling.pdf"),
-            format="pdf",
-            bbox_inches="tight",
-        )
-        fig3.savefig(
-            os.path.join(fig_dir, "signal_sampling.png"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-
-        fig4, ax4 = plt.subplots()
-        ax4.set_xlim([0, 7000])
-        ax4.set_xlabel("iterations k")
-        ax4.set_ylabel("MSE")
+        ax3.set_xlim([0, 7000])
+        ax3.set_xlabel("iterations k")
+        ax3.set_ylabel("MSE")
 
         line_options = {"linewidth": 3, "linestyle": "--"}
         algs = ["RAugDGM", "AtcWE", "WE", "RGT"]
@@ -238,54 +221,60 @@ if __name__ == "__main__":
                 (results - s_hat_star[np.newaxis, np.newaxis, :]) ** 2, axis=(0, 2)
             )
 
-            (line,) = ax4.semilogy(mse, label=alg, **line_options)
+            (line,) = ax3.semilogy(mse, label=alg, **line_options)
 
-        ax4.legend(loc="upper right")
-        ax4.grid(True, which="major", linestyle="-", linewidth=0.8)
+        ax3.legend(loc="upper right")
+        ax3.grid(True, which="major", linestyle="-", linewidth=0.8)
 
-        fig4.savefig(
-            os.path.join(fig_dir, "mse.pdf"), format="pdf", bbox_inches="tight"
+        fig3.savefig(
+            os.path.join(fig_dir, "compressed_sensing_mse.pdf"),
+            format="pdf",
+            bbox_inches="tight",
         )
-        fig4.savefig(os.path.join(fig_dir, "mse.png"), dpi=300, bbox_inches="tight")
+        fig3.savefig(
+            os.path.join(fig_dir, "compressed_sensing_mse.png"),
+            dpi=300,
+            bbox_inches="tight",
+        )
 
-        fig5, ax5 = plt.subplots()
+        fig4, ax4 = plt.subplots()
 
         recovered_signal = np.load(os.path.join(res_dir, "recovered_signal.npy"))
         x_recon = idct(recovered_signal, norm="ortho")
 
-        ax5.plot(t, x_recon, color=sens_color[15])
+        ax4.plot(t, x_recon, color=sens_color[3])
 
-        ax5.set_xlim([0.25, 0.31])
-        ax5.set_ylim([-2, 2])
-        ax5.set_xlabel("time (s)")
+        ax4.set_xlim([0.25, 0.31])
+        ax4.set_ylim([-2, 2])
+        ax4.set_xlabel("time (s)")
 
-        fig5.savefig(
+        fig4.savefig(
             os.path.join(fig_dir, "recovered_signal.pdf"),
             format="pdf",
             bbox_inches="tight",
         )
-        fig5.savefig(
+        fig4.savefig(
             os.path.join(fig_dir, "recovered_signal.png"),
             dpi=300,
             bbox_inches="tight",
         )
 
-        fig6, ax6 = plt.subplots()
+        fig5, ax5 = plt.subplots()
 
         x_recon_t = fft(x_recon)
         psd_recon = (np.abs(x_recon_t) ** 2) / n
 
-        ax6.set_xlim([0, n // 2])
-        ax6.set_ylim([0, 1200])
-        ax6.set_xlabel("Frequency (Hz)")
-        ax6.plot(psd_recon[: n // 2], color=sens_color[15])
+        ax5.set_xlim([0, n // 2])
+        ax5.set_ylim([0, 1200])
+        ax5.set_xlabel("Frequency (Hz)")
+        ax5.plot(psd_recon[: n // 2], color=sens_color[3])
 
-        fig6.savefig(
+        fig5.savefig(
             os.path.join(fig_dir, "recovered_signal_freq.pdf"),
             format="pdf",
             bbox_inches="tight",
         )
-        fig6.savefig(
+        fig5.savefig(
             os.path.join(fig_dir, "recovered_signal_freq.png"),
             dpi=300,
             bbox_inches="tight",
