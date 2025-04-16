@@ -184,12 +184,12 @@ if __name__ == "__main__":
 
         for edge in edge_pairs:
             ax1.plot(
-                *(sens_loc[:, edge]),
-                linestyle="--",
-                color="gray",
-                linewidth=1.5,
-                alpha=0.7,
-                label="Links" if edge == edge_pairs[0] else None,
+            *(sens_loc[:, edge]),
+            linestyle="--",
+            color="gray",
+            linewidth=1.5,
+            alpha=0.7,
+            label="Links" if edge == edge_pairs[0] else None,
             )
 
         ax1.scatter(
@@ -200,6 +200,7 @@ if __name__ == "__main__":
             label="Sensors",
             edgecolors="black",
             linewidth=0.5,
+            zorder=3,
         )
 
         ax1.plot(
@@ -210,6 +211,7 @@ if __name__ == "__main__":
             label="Source",
             markersize=10,
             markeredgewidth=2,
+            zorder=4,
         )
 
         ax1.legend(loc="lower right", fontsize=12, frameon=True, framealpha=0.9)
