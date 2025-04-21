@@ -13,11 +13,11 @@ from gossip import create_gossip_network, Gossip
 
 def dco_task(
     algorithm: str,
-    theta_p: NDArray[np.float64],
-    y_p: NDArray[np.float64],
+    theta_i: NDArray[np.float64],
+    y_i: NDArray[np.float64],
     communicator: Gossip,
-    dim_p: int,
-    lam_p: int | float,
+    dim_i: int,
+    lam_i: int | float,
     r_dir: str,
     alpha: int | float,
     gamma: int | float,
@@ -26,9 +26,9 @@ def dco_task(
     from jax.numpy.linalg import norm
 
     def f(var):
-        return norm(theta_p @ var - y_p) ** 2
+        return norm(theta_i @ var - y_i) ** 2
 
-    model = Model(dim_p, f, g_type="l1", lam=lam_p, grad_backend="jax")
+    model = Model(dim_i, f, g_type="l1", lam=lam_i, grad_backend="jax")
 
     solver = Solver(model, communicator)
     solver.solve(algorithm, alpha, gamma, max_iter)

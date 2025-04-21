@@ -11,20 +11,20 @@ from gossip import create_gossip_network, Gossip
 
 def dco_task(
     algorithm: str,
-    u_p: NDArray[np.float64],
-    v_p: NDArray[np.float64],
+    u_i: NDArray[np.float64],
+    v_i: NDArray[np.float64],
     communicator: Gossip,
-    dim_p: int,
-    rho_p: float,
+    dim_i: int,
+    rho_i: float,
     r_dir: str,
     alpha: int | float,
     gamma: int | float,
     max_iter: int,
 ) -> None:
     def f(var):
-        return (u_p @ var - v_p) ** 2 + rho_p * var @ var
+        return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
-    model = Model(dim_p, f)
+    model = Model(dim_i, f)
 
     solver = Solver(model, communicator)
     solver.solve(algorithm, alpha, gamma, max_iter)

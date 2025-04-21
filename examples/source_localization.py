@@ -12,12 +12,12 @@ from gossip import create_gossip_network, Gossip
 
 def dco_task(
     algorithm: str,
-    sens_loc_p: NDArray[np.float64],
-    meas_p: NDArray[np.float64],
+    sens_loc_i: NDArray[np.float64],
+    meas_i: NDArray[np.float64],
     communicator: Gossip,
-    dim_p: int,
-    a_p: NDArray[np.float64],
-    rho_p: int | float,
+    dim_i: int,
+    a_i: NDArray[np.float64],
+    rho_i: int | float,
     r_dir: str,
     alpha: int | float,
     gamma: int | float,
@@ -28,10 +28,10 @@ def dco_task(
 
     def f(var):
         return jnp.mean(
-            (meas_p - a_p / jnp.linalg.norm(var - sens_loc_p)) ** 2
-        ) + rho_p * jnp.sum(var**2)
+            (meas_i - a_i / jnp.linalg.norm(var - sens_loc_i)) ** 2
+        ) + rho_i * jnp.sum(var**2)
 
-    model = Model(dim_p, f, grad_backend="jax")
+    model = Model(dim_i, f, grad_backend="jax")
 
     solver = Solver(model, communicator)
     solver.solve(algorithm, alpha, gamma, max_iter)
