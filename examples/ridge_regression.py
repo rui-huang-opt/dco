@@ -71,7 +71,7 @@ if __name__ == "__main__":
     x_star = x.value
 
     # Distributed optimization
-    common_params = {"dim_p": dim, "rho_p": rho, "r_dir": res_dir, "max_iter": 2000}
+    common_params = {"dim_i": dim, "rho_i": rho, "r_dir": res_dir, "max_iter": 2000}
     algorithm_configs = {
         "EXTRA": {"alpha": 0.2, "gamma": 0.16},
         "NIDS": {"alpha": 0.2, "gamma": 0.21},

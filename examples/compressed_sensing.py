@@ -42,7 +42,7 @@ def dco_task(
 
 if __name__ == "__main__":
     # Set the script type: "centralized", "distributed", or "plot results"
-    script_type = "plot results"
+    script_type = "distributed"
 
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
     # Distributed optimization
     elif script_type == "distributed":
-        common_params = {"dim_p": n, "lam_p": lam, "r_dir": res_dir, "max_iter": 7000}
+        common_params = {"dim_i": n, "lam_i": lam, "r_dir": res_dir, "max_iter": 7000}
         algorithm_configs = {
             "WE": {"alpha": 0.1, "gamma": 0.893},
             "AtcWE": {"alpha": 0.1, "gamma": 1.123},

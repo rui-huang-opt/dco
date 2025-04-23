@@ -112,9 +112,9 @@ if __name__ == "__main__":
     # Distributed optimization
     elif script_type == "distributed":
         common_params = {
-            "dim_p": 2,
-            "a_p": A,
-            "rho_p": rho,
+            "dim_i": 2,
+            "a_i": A,
+            "rho_i": rho,
             "r_dir": res_dir,
             "max_iter": 7000,
         }
