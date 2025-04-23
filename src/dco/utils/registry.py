@@ -7,14 +7,10 @@ class Registry(Generic[T]):
     def __init__(self):
         self._registry: Dict[str, Type[T]] = {}
 
-    def register(self, name: str) -> Callable[[Type[T]], Type[T]]:
-        def decorator(cls: Type[T]) -> Type[T]:
-            if name in self._registry:
-                raise ValueError(f"Class with name '{name}' is already registered.")
-            self._registry[name] = cls
-            return cls
-
-        return decorator
+    def register(self, cls: Type[T], key: str):
+        if key in self._registry:
+            raise ValueError(f"Class with name '{key}' is already registered.")
+        self._registry[key] = cls
 
     def create(self, name: str, *args: Any, **kwargs: Any) -> T:
         if name not in self._registry:

@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 from typing import Callable, Union
-from .regularizer import registry
+from .regularizer import Regularizer
 from .gradient import grad
 
 
@@ -19,7 +19,7 @@ class Model:
         self._f_i = f_i
         self._grad_f_i = grad(f_i, grad_backend)
         self._g_type = g_type
-        self._g = registry.create(g_type, lam)
+        self._g = Regularizer.create(g_type, lam)
 
         self._x_i: NDArray[np.float64] | None = None
 
@@ -34,7 +34,7 @@ class Model:
 
     @g_type.setter
     def g_type(self, value: str):
-        self._g = registry.create(value)
+        self._g = Regularizer.create(value, self._g.lam)
         self._g_type = value
 
     @property

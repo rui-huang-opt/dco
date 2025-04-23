@@ -7,6 +7,12 @@ from ..model import Model
 
 
 class Algorithm(metaclass=ABCMeta):
+    registry = Registry["Algorithm"]()
+
+    def __init_subclass__(cls, key: str, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.registry.register(cls, key)
+
     def __init__(
         self,
         model: Model,
@@ -30,8 +36,20 @@ class Algorithm(metaclass=ABCMeta):
     @abstractmethod
     def perform_iteration(self, k: int): ...
 
+    @classmethod
+    def create(
+        cls,
+        key: str,
+        model: Model,
+        communicator: Gossip,
+        alpha: int | float,
+        gamma: int | float,
+        z_i_init: NDArray[np.float64] | None = None,
+    ):
+        return cls.registry.create(key, model, communicator, alpha, gamma, z_i_init)
 
-class LaplacianBased(Algorithm, metaclass=ABCMeta):
+
+class LaplacianBased(Algorithm, metaclass=ABCMeta, key="LaplacianBased"):
     def __init__(
         self,
         model: Model,
@@ -52,7 +70,7 @@ class LaplacianBased(Algorithm, metaclass=ABCMeta):
         return self._communicator.degree * local_state - sum(neighbor_states)
 
 
-class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta):
+class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta, key="RobustLaplacianBased"):
     def __init__(
         self,
         model: Model,
@@ -66,11 +84,7 @@ class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta):
         self._y_i = initialize_array(y_i_init, model.dim)
 
 
-registry = Registry[Algorithm]()
-
-
-@registry.register("DGD")
-class DGD(LaplacianBased):
+class DGD(LaplacianBased, key="DGD"):
     """
     Distributed Gradient Descent (DGD) algorithm.
     """
@@ -95,8 +109,7 @@ class DGD(LaplacianBased):
         self._x_i = self._x_i - self._alpha * error_x_i - gamma_bar * grad_val
 
 
-@registry.register("EXTRA")
-class EXTRA(LaplacianBased):
+class EXTRA(LaplacianBased, key="EXTRA"):
     def __init__(
         self,
         model: Model,
@@ -130,8 +143,7 @@ class EXTRA(LaplacianBased):
         self._new_z_i = new_new_z_i
 
 
-@registry.register("NIDS")
-class NIDS(LaplacianBased):
+class NIDS(LaplacianBased, key="NIDS"):
     def __init__(
         self,
         model: Model,
@@ -165,8 +177,7 @@ class NIDS(LaplacianBased):
         self._new_z_i = new_new_z_i
 
 
-@registry.register("DIGing")
-class DIGing(LaplacianBased):
+class DIGing(LaplacianBased, key="DIGing"):
     def __init__(
         self,
         model: Model,
@@ -197,8 +208,7 @@ class DIGing(LaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("AugDGM")
-class AugDGM(LaplacianBased):
+class AugDGM(LaplacianBased, key="AugDGM"):
     def __init__(
         self,
         model: Model,
@@ -233,8 +243,7 @@ class AugDGM(LaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("RGT")
-class RGT(RobustLaplacianBased):
+class RGT(RobustLaplacianBased, key="RGT"):
     def __init__(
         self,
         model: Model,
@@ -268,8 +277,7 @@ class RGT(RobustLaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("WE")
-class WE(RobustLaplacianBased):
+class WE(RobustLaplacianBased, key="WE"):
     def __init__(
         self,
         model: Model,
@@ -303,8 +311,7 @@ class WE(RobustLaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("RAugDGM")
-class RAugDGM(RobustLaplacianBased):
+class RAugDGM(RobustLaplacianBased, key="RAugDGM"):
     def __init__(
         self,
         model: Model,
@@ -339,8 +346,7 @@ class RAugDGM(RobustLaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("AtcWE")
-class AtcWE(RobustLaplacianBased):
+class AtcWE(RobustLaplacianBased, key="AtcWE"):
     def __init__(
         self,
         model: Model,
@@ -374,8 +380,7 @@ class AtcWE(RobustLaplacianBased):
         self._y_i = new_y_i
 
 
-@registry.register("ADMM")
-class ADMM(Algorithm):
+class ADMM(Algorithm, key="ADMM"):
     def __init__(
         self,
         model: Model,

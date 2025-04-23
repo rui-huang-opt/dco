@@ -4,7 +4,7 @@ import numpy as np
 import logging
 from gossip import Gossip
 from .model import Model
-from .algorithm import registry
+from .algorithm import Algorithm
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +26,7 @@ class Solver:
         max_iter: int = 1000,
         **kwargs,
     ):
-        algorithm = registry.create(
+        algorithm = Algorithm.create(
             algorithm_name, self._model, self._communicator, alpha, gamma, **kwargs
         )
 

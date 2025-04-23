@@ -1,1 +1,1 @@
-from .algorithm import Algorithm, registry
+from .algorithm import Algorithm
