@@ -9,7 +9,7 @@ from ..model import Model
 class Algorithm(metaclass=ABCMeta):
     registry = Registry["Algorithm"]()
 
-    def __init_subclass__(cls, key: str, **kwargs):
+    def __init_subclass__(cls, key: str | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.registry.register(cls, key)
 
@@ -49,7 +49,7 @@ class Algorithm(metaclass=ABCMeta):
         return cls.registry.create(key, model, communicator, alpha, gamma, z_i_init)
 
 
-class LaplacianBased(Algorithm, metaclass=ABCMeta, key="LaplacianBased"):
+class LaplacianBased(Algorithm, metaclass=ABCMeta):
     def __init__(
         self,
         model: Model,
@@ -70,7 +70,7 @@ class LaplacianBased(Algorithm, metaclass=ABCMeta, key="LaplacianBased"):
         return self._communicator.degree * local_state - sum(neighbor_states)
 
 
-class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta, key="RobustLaplacianBased"):
+class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta):
     def __init__(
         self,
         model: Model,

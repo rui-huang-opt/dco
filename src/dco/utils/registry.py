@@ -7,7 +7,9 @@ class Registry(Generic[T]):
     def __init__(self):
         self._registry: Dict[str, Type[T]] = {}
 
-    def register(self, cls: Type[T], key: str):
+    def register(self, cls: Type[T], key: str | None):
+        if key is None:
+            return
         if key in self._registry:
             raise ValueError(f"Class with name '{key}' is already registered.")
         self._registry[key] = cls
