@@ -24,10 +24,17 @@ class Solver:
         alpha: int | float,
         gamma: int | float,
         max_iter: int = 1000,
+        *args,
         **kwargs,
     ):
         algorithm = Algorithm.create(
-            algorithm_name, self._model, self._communicator, alpha, gamma, **kwargs
+            algorithm_name,
+            self._model,
+            self._communicator,
+            alpha,
+            gamma,
+            *args,
+            **kwargs,
         )
 
         begin = time.perf_counter()

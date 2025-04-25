@@ -45,8 +45,12 @@ class Algorithm(metaclass=ABCMeta):
         alpha: int | float,
         gamma: int | float,
         z_i_init: NDArray[np.float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        return cls.registry.create(key, model, communicator, alpha, gamma, z_i_init)
+        return cls.registry.create(
+            key, model, communicator, alpha, gamma, z_i_init, *args, **kwargs
+        )
 
 
 class RobustAlgorithm(Algorithm, metaclass=ABCMeta):
@@ -268,7 +272,7 @@ class WE(RobustAlgorithm, key="WE"):
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init, y_i_init)
 
-    def perform_iteration(self, k: int):
+    def perform_iteration(self, k):
         p_i = self._x_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i)
@@ -304,7 +308,7 @@ class RAugDGM(RobustAlgorithm, key="RAugDGM"):
 
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self, k: int):
+    def perform_iteration(self, k):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i)
@@ -339,7 +343,7 @@ class AtcWE(RobustAlgorithm, key="AtcWE"):
 
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self, k: int):
+    def perform_iteration(self, k):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i)
@@ -381,7 +385,7 @@ class ADMM(Algorithm, key="ADMM"):
             j: np.zeros(model.dim) for j in self._communicator.neighbor_names
         }
 
-    def perform_iteration(self, k: int):
+    def perform_iteration(self, k):
         y_s_stack_i = (
             np.hstack((self._x_i, self._model.grad_f_i(self._x_i))) + sum(self._zeta_i)
         ) / self._beta
