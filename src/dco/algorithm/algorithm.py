@@ -53,20 +53,6 @@ class Algorithm(metaclass=ABCMeta):
         )
 
 
-class RobustAlgorithm(Algorithm, metaclass=ABCMeta):
-    def __init__(
-        self,
-        model: Model,
-        communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
-        z_i_init: NDArray[np.float64] | None,
-        y_i_init: NDArray[np.float64] | None,
-    ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
-        self._y_i = initialize_array(y_i_init, model.dim)
-
-
 class DGD(Algorithm, key="DGD"):
     """
     Distributed Gradient Descent (DGD) algorithm.
@@ -226,7 +212,7 @@ class AugDGM(Algorithm, key="AugDGM"):
         self._y_i = new_y_i
 
 
-class RGT(RobustAlgorithm, key="RGT"):
+class RGT(Algorithm, key="RGT"):
     def __init__(
         self,
         model: Model,
@@ -236,7 +222,8 @@ class RGT(RobustAlgorithm, key="RGT"):
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init, y_i_init)
+        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        self._y_i = initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self, k):
         p_i = self._x_i + self._y_i
@@ -260,7 +247,7 @@ class RGT(RobustAlgorithm, key="RGT"):
         self._y_i = new_y_i
 
 
-class WE(RobustAlgorithm, key="WE"):
+class WE(Algorithm, key="WE"):
     def __init__(
         self,
         model: Model,
@@ -270,7 +257,8 @@ class WE(RobustAlgorithm, key="WE"):
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init, y_i_init)
+        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        self._y_i = initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self, k):
         p_i = self._x_i + self._y_i
@@ -294,7 +282,7 @@ class WE(RobustAlgorithm, key="WE"):
         self._y_i = new_y_i
 
 
-class RAugDGM(RobustAlgorithm, key="RAugDGM"):
+class RAugDGM(Algorithm, key="RAugDGM"):
     def __init__(
         self,
         model: Model,
@@ -304,8 +292,9 @@ class RAugDGM(RobustAlgorithm, key="RAugDGM"):
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init, y_i_init)
+        super().__init__(model, communicator, alpha, gamma, z_i_init)
 
+        self._y_i = initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
     def perform_iteration(self, k):
@@ -329,7 +318,7 @@ class RAugDGM(RobustAlgorithm, key="RAugDGM"):
         self._y_i = new_y_i
 
 
-class AtcWE(RobustAlgorithm, key="AtcWE"):
+class AtcWE(Algorithm, key="AtcWE"):
     def __init__(
         self,
         model: Model,
@@ -339,8 +328,9 @@ class AtcWE(RobustAlgorithm, key="AtcWE"):
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init, y_i_init)
+        super().__init__(model, communicator, alpha, gamma, z_i_init)
 
+        self._y_i = initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
     def perform_iteration(self, k):
