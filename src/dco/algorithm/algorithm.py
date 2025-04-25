@@ -49,28 +49,7 @@ class Algorithm(metaclass=ABCMeta):
         return cls.registry.create(key, model, communicator, alpha, gamma, z_i_init)
 
 
-class LaplacianBased(Algorithm, metaclass=ABCMeta):
-    def __init__(
-        self,
-        model: Model,
-        communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
-        z_i_init: NDArray[np.float64] | None,
-        **kwargs,
-    ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init, **kwargs)
-
-    def calculate_consensus_error(
-        self, local_state: NDArray[np.float64]
-    ) -> NDArray[np.float64]:
-        self._communicator.broadcast(local_state)
-        neighbor_states = self._communicator.gather()
-
-        return self._communicator.degree * local_state - sum(neighbor_states)
-
-
-class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta):
+class RobustAlgorithm(Algorithm, metaclass=ABCMeta):
     def __init__(
         self,
         model: Model,
@@ -84,7 +63,7 @@ class RobustLaplacianBased(LaplacianBased, metaclass=ABCMeta):
         self._y_i = initialize_array(y_i_init, model.dim)
 
 
-class DGD(LaplacianBased, key="DGD"):
+class DGD(Algorithm, key="DGD"):
     """
     Distributed Gradient Descent (DGD) algorithm.
     """
@@ -102,14 +81,14 @@ class DGD(LaplacianBased, key="DGD"):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
 
     def perform_iteration(self, k):
-        error_x_i = self.calculate_consensus_error(self._x_i, self._communicator)
+        delta_x_i = self._communicator.compute_laplacian(self._x_i)
         gamma_bar = self._gamma / (k + 1)
         grad_val = self._model.grad_f_i(self._x_i)
 
-        self._x_i = self._x_i - self._alpha * error_x_i - gamma_bar * grad_val
+        self._x_i = self._x_i - self._alpha * delta_x_i - gamma_bar * grad_val
 
 
-class EXTRA(LaplacianBased, key="EXTRA"):
+class EXTRA(Algorithm, key="EXTRA"):
     def __init__(
         self,
         model: Model,
@@ -120,21 +99,21 @@ class EXTRA(LaplacianBased, key="EXTRA"):
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
 
-        error_x_i = self.calculate_consensus_error(self._x_i)
+        delta_x_i = self._communicator.compute_laplacian(self._x_i)
 
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._new_z_i = (
-            self._x_i - self._alpha * error_x_i - self._gamma * self._grad_val
+            self._x_i - self._alpha * delta_x_i - self._gamma * self._grad_val
         )
 
     def perform_iteration(self, k):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         p_i = self._new_z_i + new_x_i - self._x_i
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
         new_grad_val = self._model.grad_f_i(new_x_i)
 
-        new_new_z_i = (p_i - 0.5 * self._alpha * error_p_i) - self._gamma * (
+        new_new_z_i = (p_i - 0.5 * self._alpha * delta_p_i) - self._gamma * (
             new_grad_val - self._grad_val
         )
 
@@ -143,7 +122,7 @@ class EXTRA(LaplacianBased, key="EXTRA"):
         self._new_z_i = new_new_z_i
 
 
-class NIDS(LaplacianBased, key="NIDS"):
+class NIDS(Algorithm, key="NIDS"):
     def __init__(
         self,
         model: Model,
@@ -168,16 +147,16 @@ class NIDS(LaplacianBased, key="NIDS"):
             - self._gamma * (new_grad_val - self._grad_val)
         )
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
 
-        new_new_z_i = p_i - 0.5 * self._alpha * error_p_i
+        new_new_z_i = p_i - 0.5 * self._alpha * delta_p_i
 
         self._grad_val = new_grad_val
         self._x_i = new_x_i
         self._new_z_i = new_new_z_i
 
 
-class DIGing(LaplacianBased, key="DIGing"):
+class DIGing(Algorithm, key="DIGing"):
     def __init__(
         self,
         model: Model,
@@ -194,21 +173,21 @@ class DIGing(LaplacianBased, key="DIGing"):
         self._y_i = self._grad_val
 
     def perform_iteration(self, k):
-        error_x_i = self.calculate_consensus_error(self._x_i)
+        delta_x_i = self._communicator.compute_laplacian(self._x_i)
 
-        new_x_i = self._x_i - self._alpha * error_x_i - self._gamma * self._y_i
+        new_x_i = self._x_i - self._alpha * delta_x_i - self._gamma * self._y_i
         new_grad_val = self._model.grad_f_i(new_x_i)
 
-        error_y_i = self.calculate_consensus_error(self._y_i)
+        delta_y_i = self._communicator.compute_laplacian(self._y_i)
 
-        new_y_i = self._y_i - self._alpha * error_y_i + new_grad_val - self._grad_val
+        new_y_i = self._y_i - self._alpha * delta_y_i + new_grad_val - self._grad_val
 
         self._grad_val = new_grad_val
         self._x_i = new_x_i
         self._y_i = new_y_i
 
 
-class AugDGM(LaplacianBased, key="AugDGM"):
+class AugDGM(Algorithm, key="AugDGM"):
     def __init__(
         self,
         model: Model,
@@ -225,25 +204,25 @@ class AugDGM(LaplacianBased, key="AugDGM"):
     def perform_iteration(self, k):
         s_i = self._x_i - self._gamma * self._y_i
 
-        error_s_i = self.calculate_consensus_error(s_i)
+        delta_s_i = self._communicator.compute_laplacian(s_i)
 
-        new_z_i = s_i - self._alpha * error_s_i
+        new_z_i = s_i - self._alpha * delta_s_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
         new_grad_val = self._model.grad_f_i(new_x_i)
 
         p_i = self._y_i + new_grad_val - self._grad_val
         q_i = p_i + (new_z_i - new_x_i) / self._gamma
 
-        error_q_i = self.calculate_consensus_error(q_i)
+        delta_q_i = self._communicator.compute_laplacian(q_i)
 
-        new_y_i = p_i - self._alpha * error_q_i
+        new_y_i = p_i - self._alpha * delta_q_i
 
         self._grad_val = new_grad_val
         self._x_i = new_x_i
         self._y_i = new_y_i
 
 
-class RGT(RobustLaplacianBased, key="RGT"):
+class RGT(RobustAlgorithm, key="RGT"):
     def __init__(
         self,
         model: Model,
@@ -258,26 +237,26 @@ class RGT(RobustLaplacianBased, key="RGT"):
     def perform_iteration(self, k):
         p_i = self._x_i + self._y_i
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
 
         new_z_i = (
             self._x_i
             - self._gamma * self._model.grad_f_i(self._x_i)
-            - self._alpha * error_p_i
+            - self._alpha * delta_p_i
         )
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
 
         q_i = new_x_i - self._x_i - new_z_i
 
-        error_q_i = self.calculate_consensus_error(q_i)
+        delta_q_i = self._communicator.compute_laplacian(q_i)
 
-        new_y_i = self._y_i + new_x_i - self._x_i - self._alpha * error_q_i
+        new_y_i = self._y_i + new_x_i - self._x_i - self._alpha * delta_q_i
 
         self._x_i = new_x_i
         self._y_i = new_y_i
 
 
-class WE(RobustLaplacianBased, key="WE"):
+class WE(RobustAlgorithm, key="WE"):
     def __init__(
         self,
         model: Model,
@@ -292,26 +271,26 @@ class WE(RobustLaplacianBased, key="WE"):
     def perform_iteration(self, k: int):
         p_i = self._x_i + self._y_i
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
 
         new_z_i = (
             self._x_i
             - self._gamma * self._model.grad_f_i(self._x_i)
-            - self._alpha * error_p_i
+            - self._alpha * delta_p_i
         )
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
 
         q_i = new_z_i - new_x_i + self._x_i
 
-        error_q_i = self.calculate_consensus_error(q_i)
+        delta_q_i = self._communicator.compute_laplacian(q_i)
 
-        new_y_i = self._y_i + self._alpha * error_q_i
+        new_y_i = self._y_i + self._alpha * delta_q_i
 
         self._x_i = new_x_i
         self._y_i = new_y_i
 
 
-class RAugDGM(RobustLaplacianBased, key="RAugDGM"):
+class RAugDGM(RobustAlgorithm, key="RAugDGM"):
     def __init__(
         self,
         model: Model,
@@ -328,25 +307,25 @@ class RAugDGM(RobustLaplacianBased, key="RAugDGM"):
     def perform_iteration(self, k: int):
         p_i = self._s_i + self._y_i
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
 
-        new_z_i = self._s_i - self._alpha * error_p_i
+        new_z_i = self._s_i - self._alpha * delta_p_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
         new_s_i = new_x_i - self._gamma * self._model.grad_f_i(new_x_i)
 
         q_i = new_s_i - self._s_i
         t_i = q_i - new_z_i
 
-        error_t_i = self.calculate_consensus_error(t_i)
+        delta_t_i = self._communicator.compute_laplacian(t_i)
 
-        new_y_i = self._y_i + q_i - self._alpha * error_t_i
+        new_y_i = self._y_i + q_i - self._alpha * delta_t_i
 
         self._x_i = new_x_i
         self._s_i = new_s_i
         self._y_i = new_y_i
 
 
-class AtcWE(RobustLaplacianBased, key="AtcWE"):
+class AtcWE(RobustAlgorithm, key="AtcWE"):
     def __init__(
         self,
         model: Model,
@@ -363,17 +342,17 @@ class AtcWE(RobustLaplacianBased, key="AtcWE"):
     def perform_iteration(self, k: int):
         p_i = self._s_i + self._y_i
 
-        error_p_i = self.calculate_consensus_error(p_i)
+        delta_p_i = self._communicator.compute_laplacian(p_i)
 
-        new_z_i = self._s_i - self._alpha * error_p_i
+        new_z_i = self._s_i - self._alpha * delta_p_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
         new_s_i = new_x_i - self._gamma * self._model.grad_f_i(new_x_i)
 
         q_i = new_z_i - new_s_i + self._s_i
 
-        error_q_i = self.calculate_consensus_error(q_i)
+        delta_q_i = self._communicator.compute_laplacian(q_i)
 
-        new_y_i = self._y_i + self._alpha * error_q_i
+        new_y_i = self._y_i + self._alpha * delta_q_i
 
         self._x_i = new_x_i
         self._s_i = new_s_i
