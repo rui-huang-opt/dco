@@ -7,7 +7,7 @@ from scipy.optimize import minimize, OptimizeResult
 from numpy.typing import NDArray
 from numpy.linalg import norm
 from matplotlib.colors import BoundaryNorm
-from gossip import create_gossip_network, Gossip
+from gossip import Gossip, create_sync_network
 
 
 def dco_task(
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         }
 
         processes: List[Process] = []
-        gossip_network = create_gossip_network(sens_names, edge_pairs, noise_scale=0.01)
+        gossip_network = create_sync_network(sens_names, edge_pairs, noise_scale=0.01)
         alg = "RAugDGM"
         params = algorithm_configs[alg] | common_params
 
@@ -184,12 +184,12 @@ if __name__ == "__main__":
 
         for edge in edge_pairs:
             ax1.plot(
-            *(sens_loc[:, edge]),
-            linestyle="--",
-            color="gray",
-            linewidth=1.5,
-            alpha=0.7,
-            label="Links" if edge == edge_pairs[0] else None,
+                *(sens_loc[:, edge]),
+                linestyle="--",
+                color="gray",
+                linewidth=1.5,
+                alpha=0.7,
+                label="Links" if edge == edge_pairs[0] else None,
             )
 
         ax1.scatter(

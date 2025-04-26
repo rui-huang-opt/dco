@@ -8,7 +8,7 @@ from multiprocessing import Process
 from numpy.typing import NDArray
 from scipy.fftpack import fft, dct, idct
 from dco import Model, Solver
-from gossip import create_gossip_network, Gossip
+from gossip import Gossip, create_sync_network
 
 
 def dco_task(
@@ -42,7 +42,7 @@ def dco_task(
 
 if __name__ == "__main__":
     # Set the script type: "centralized", "distributed", or "plot results"
-    script_type = "distributed"
+    script_type = "plot results"
 
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -106,9 +106,7 @@ if __name__ == "__main__":
         }
 
         processes: List[Process] = []
-        gossip_network = create_gossip_network(
-            sens_names, edge_pairs, noise_scale=0.005
-        )
+        gossip_network = create_sync_network(sens_names, edge_pairs, noise_scale=0.005)
 
         alg = "RAugDGM"
         params = algorithm_configs[alg] | common_params

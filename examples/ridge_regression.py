@@ -6,7 +6,7 @@ from multiprocessing import Process
 from numpy.typing import NDArray
 from typing import List
 from dco import Model, Solver
-from gossip import create_gossip_network, Gossip
+from gossip import Gossip, create_sync_network
 
 
 def dco_task(
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         params |= common_params
 
         processes: List[Process] = []
-        gossip_network = create_gossip_network(
+        gossip_network = create_sync_network(
             node_names, edge_pairs, noise_scale=0.001
         )
 
