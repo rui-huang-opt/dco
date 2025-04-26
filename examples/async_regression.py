@@ -35,7 +35,6 @@ def dco_task(
         gamma,
         stop_event=stop_event,
         sync_barrier=sync_barrier,
-        sleep_time=0.005,
     )
 
     save_path = os.path.join(r_dir, algorithm)
@@ -90,7 +89,7 @@ if __name__ == "__main__":
     alg = "RAugDGM"
     params = {
         "alpha": 0.2,
-        "gamma": 0.11,
+        "gamma": 0.31,
         "dim_i": dim,
         "rho_i": rho,
         "r_dir": res_dir,
