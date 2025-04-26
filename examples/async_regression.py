@@ -35,6 +35,7 @@ def dco_task(
         gamma,
         stop_event=stop_event,
         sync_barrier=sync_barrier,
+        sleep_time=0.001,
     )
 
     save_path = os.path.join(r_dir, algorithm)
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         processes.append(process)
         process.start()
 
-    event.wait(3)
+    event.wait(0.5)
     event.set()
 
     for process in processes:
