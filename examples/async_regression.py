@@ -42,6 +42,10 @@ def dco_task(
 
     save_path = os.path.join(r_dir, algorithm)
     solver.save_results(save_path)
+    np.save(
+        os.path.join(save_path, f"time_{communicator.name}.npy"),
+        np.array(solver.time_list),
+    )
 
 
 if __name__ == "__main__":
@@ -84,7 +88,11 @@ if __name__ == "__main__":
     # Distributed optimization
     event = Event()
     barrier = Barrier(len(node_names))
-    common_params = {
+
+    alg = "RAugDGM"
+    params = {
+        "alpha": 0.2,
+        "gamma": 0.11,
         "dim_i": dim,
         "rho_i": rho,
         "r_dir": res_dir,
@@ -92,22 +100,10 @@ if __name__ == "__main__":
         "stop_event": event,
         "sync_barrier": barrier,
     }
-    algorithm_configs = {
-        "EXTRA": {"alpha": 0.2, "gamma": 0.16},
-        "NIDS": {"alpha": 0.2, "gamma": 0.21},
-        "DIGing": {"alpha": 0.2, "gamma": 0.11},
-        "AugDGM": {"alpha": 0.2, "gamma": 0.31},
-        "WE": {"alpha": 0.2, "gamma": 0.17},
-        "RGT": {"alpha": 0.2, "gamma": 0.11},
-    }
-
-    alg = "RGT"
-    params = algorithm_configs[alg]
-    params |= common_params
 
     processes: List[Process] = []
     gossip_network = create_async_network(
-        node_names, edge_pairs, n_channels=2, maxsize=50
+        node_names, edge_pairs, n_channels=2, maxsize=100
     )
 
     for i in node_names:
@@ -119,7 +115,7 @@ if __name__ == "__main__":
         processes.append(process)
         process.start()
 
-    event.wait(1)
+    event.wait(2)
     event.set()
 
     for process in processes:
@@ -141,23 +137,31 @@ if __name__ == "__main__":
     )
 
     fig1, ax1 = plt.subplots()
-    ax1.set_xlim([0, 2000])
-    ax1.set_xlabel("iterations k")
+    ax1.set_xlabel("time (s)")
     ax1.set_ylabel("MSE")
 
     line_options = {"linewidth": 3, "linestyle": "--"}
 
-    results = {i: np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names}
-    mse = {i: np.mean((results[i] - x_star[np.newaxis, :]) ** 2, axis=1) for i in node_names}
+    times = {
+        i: np.load(os.path.join(res_dir, alg, f"time_{i}.npy")) for i in node_names
+    }
+    results = {
+        i: np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names
+    }
+    mse = {
+        i: np.mean((results[i] - x_star[np.newaxis, :]) ** 2, axis=1)
+        for i in node_names
+    }
 
     for i in node_names:
         ax1.semilogy(
+            times[i],
             mse[i],
             label=f"node {i}",
             **line_options,
         )
 
-    ax1.legend(loc=(0.7, 0.28))
+    ax1.legend(loc="upper right")
     ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
     fig1.savefig(

@@ -2,6 +2,8 @@ import os
 import time
 import numpy as np
 import logging
+from typing import List
+from multiprocessing.synchronize import Event, Barrier
 from gossip import Gossip
 from .model import Model
 from .algorithm import Algorithm
@@ -17,6 +19,7 @@ class Solver:
     ):
         self._model = model
         self._communicator = communicator
+        self.time_list: List[float] = []
 
     def solve(
         self,
@@ -24,6 +27,9 @@ class Solver:
         alpha: int | float,
         gamma: int | float,
         max_iter: int = 1000,
+        is_async: bool = False,
+        stop_event: Event | None = None,
+        sync_barrier: Barrier | None = None,
         *args,
         **kwargs,
     ):
@@ -37,19 +43,30 @@ class Solver:
             **kwargs,
         )
 
-        begin = time.perf_counter()
+        if is_async:
+            k = 0
+            sync_barrier.wait()
+            start_time = time.perf_counter()
 
-        for k in range(max_iter):
-            algorithm.update_model()
-            algorithm.perform_iteration(k)
+            while not stop_event.is_set():
+                self.time_list.append(time.perf_counter() - start_time)
+                algorithm.update_model()
+                algorithm.perform_iteration(k)
+                k += 1
+        else:
+            begin = time.perf_counter()
 
-        end = time.perf_counter()
+            for k in range(max_iter):
+                algorithm.update_model()
+                algorithm.perform_iteration(k)
 
-        logging.info(
-            f"algorithm: {algorithm_name}, "
-            f"node: {self._communicator.name}, "
-            f"elapsed time: {end - begin:.6f}s"
-        )
+            end = time.perf_counter()
+
+            logging.info(
+                f"algorithm: {algorithm_name}, "
+                f"node: {self._communicator.name}, "
+                f"elapsed time: {end - begin:.6f}s"
+            )
 
     def save_results(self, save_path: str):
         os.makedirs(save_path, exist_ok=True)
