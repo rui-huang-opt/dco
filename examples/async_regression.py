@@ -20,7 +20,6 @@ def dco_task(
     r_dir: str,
     alpha: int | float,
     gamma: int | float,
-    max_iter: int,
     stop_event: mps.Event,
     sync_barrier: mps.Barrier,
 ) -> None:
@@ -30,14 +29,13 @@ def dco_task(
     model = Model(dim_i, f)
 
     solver = Solver(model, communicator)
-    solver.solve(
+    solver.solve_async(
         algorithm,
         alpha,
         gamma,
-        max_iter,
-        is_async=True,
         stop_event=stop_event,
         sync_barrier=sync_barrier,
+        sleep_time=0.005,
     )
 
     save_path = os.path.join(r_dir, algorithm)
@@ -96,7 +94,6 @@ if __name__ == "__main__":
         "dim_i": dim,
         "rho_i": rho,
         "r_dir": res_dir,
-        "max_iter": 2000,
         "stop_event": event,
         "sync_barrier": barrier,
     }
@@ -115,7 +112,7 @@ if __name__ == "__main__":
         processes.append(process)
         process.start()
 
-    event.wait(2)
+    event.wait(3)
     event.set()
 
     for process in processes:
@@ -165,8 +162,8 @@ if __name__ == "__main__":
     ax1.grid(True, which="major", linestyle="-", linewidth=0.8)
 
     fig1.savefig(
-        os.path.join(fig_dir, "ridge_regression.pdf"), format="pdf", bbox_inches="tight"
+        os.path.join(fig_dir, "async_regression.pdf"), format="pdf", bbox_inches="tight"
     )
     fig1.savefig(
-        os.path.join(fig_dir, "ridge_regression.png"), dpi=300, bbox_inches="tight"
+        os.path.join(fig_dir, "async_regression.png"), dpi=300, bbox_inches="tight"
     )
