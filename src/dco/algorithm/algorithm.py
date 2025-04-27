@@ -34,7 +34,7 @@ class Algorithm(metaclass=ABCMeta):
         self._model.x_i = self._x_i
 
     @abstractmethod
-    def perform_iteration(self, k: int): ...
+    def perform_iteration(self): ...
 
     @classmethod
     def create(
@@ -69,13 +69,15 @@ class DGD(Algorithm, key="DGD"):
         if model.g_type != "zero":
             raise ValueError("DIGing cannot be used for composite problems.")
         super().__init__(model, communicator, alpha, gamma, z_i_init)
+        self._k = 0
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         delta_x_i = self._communicator.compute_laplacian(self._x_i, index=0)
-        gamma_bar = self._gamma / (k + 1)
+        gamma_bar = self._gamma / (self._k + 1)
         grad_val = self._model.grad_f_i(self._x_i)
 
         self._x_i = self._x_i - self._alpha * delta_x_i - gamma_bar * grad_val
+        self._k += 1
 
 
 class EXTRA(Algorithm, key="EXTRA"):
@@ -96,7 +98,7 @@ class EXTRA(Algorithm, key="EXTRA"):
             self._x_i - self._alpha * delta_x_i - self._gamma * self._grad_val
         )
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         p_i = self._new_z_i + new_x_i - self._x_i
 
@@ -126,7 +128,7 @@ class NIDS(Algorithm, key="NIDS"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._new_z_i = self._x_i - self._gamma * self._grad_val
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         new_grad_val = self._model.grad_f_i(new_x_i)
 
@@ -162,7 +164,7 @@ class DIGing(Algorithm, key="DIGing"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         delta_x_i = self._communicator.compute_laplacian(self._x_i, index=0)
 
         new_x_i = self._x_i - self._alpha * delta_x_i - self._gamma * self._y_i
@@ -191,7 +193,7 @@ class AugDGM(Algorithm, key="AugDGM"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         s_i = self._x_i - self._gamma * self._y_i
 
         delta_s_i = self._communicator.compute_laplacian(s_i, index=0)
@@ -225,7 +227,7 @@ class RGT(Algorithm, key="RGT"):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
         self._y_i = initialize_array(y_i_init, model.dim)
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         p_i = self._x_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
@@ -260,7 +262,7 @@ class WE(Algorithm, key="WE"):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
         self._y_i = initialize_array(y_i_init, model.dim)
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         p_i = self._x_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
@@ -297,7 +299,7 @@ class RAugDGM(Algorithm, key="RAugDGM"):
         self._y_i = initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
@@ -333,7 +335,7 @@ class AtcWE(Algorithm, key="AtcWE"):
         self._y_i = initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self, k):
+    def perform_iteration(self):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._communicator.compute_laplacian(p_i, index=0)

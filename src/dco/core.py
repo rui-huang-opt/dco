@@ -42,9 +42,9 @@ class Solver:
 
         begin = time.perf_counter()
 
-        for k in range(max_iter):
+        for _ in range(max_iter):
             algorithm.update_model()
-            algorithm.perform_iteration(k)
+            algorithm.perform_iteration()
 
         end = time.perf_counter()
 
@@ -81,7 +81,7 @@ class Solver:
         while not stop_event.is_set():
             self.time_list.append(time.perf_counter() - start_time)
             algorithm.update_model()
-            algorithm.perform_iteration(k)
+            algorithm.perform_iteration()
             k += 1
 
     def save_results(self, save_path: str):
