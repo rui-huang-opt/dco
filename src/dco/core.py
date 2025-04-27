@@ -61,7 +61,6 @@ class Solver:
         gamma: int | float,
         stop_event: Event | None = None,
         sync_barrier: Barrier | None = None,
-        sleep_time: float | None = None,
         *args,
         **kwargs,
     ):
@@ -84,8 +83,6 @@ class Solver:
             algorithm.update_model()
             algorithm.perform_iteration(k)
             k += 1
-            if sleep_time is not None:
-                time.sleep(sleep_time)
 
     def save_results(self, save_path: str):
         os.makedirs(save_path, exist_ok=True)

@@ -35,7 +35,6 @@ def dco_task(
         gamma,
         stop_event=stop_event,
         sync_barrier=sync_barrier,
-        sleep_time=0.001,
     )
 
     save_path = os.path.join(r_dir, algorithm)
@@ -58,7 +57,14 @@ if __name__ == "__main__":
 
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
-    edge_pairs = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
+    edge_pairs = [
+        ("1", "2"),
+        ("2", "3"),
+        ("3", "4"),
+        ("4", "1"),
+        ("1", "3"),
+        ("2", "4"),
+    ]
 
     # Set parameters for ridge regression
     dim = 10
@@ -100,7 +106,7 @@ if __name__ == "__main__":
 
     processes: List[Process] = []
     gossip_network = create_async_network(
-        node_names, edge_pairs, n_channels=2, maxsize=100
+        node_names, edge_pairs, n_channels=2, maxsize=50
     )
 
     for i in node_names:
