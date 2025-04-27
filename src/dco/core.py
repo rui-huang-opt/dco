@@ -59,8 +59,9 @@ class Solver:
         algorithm_name: str,
         alpha: int | float,
         gamma: int | float,
-        stop_event: Event | None = None,
-        sync_barrier: Barrier | None = None,
+        stop_event: Event,
+        sync_barrier: Barrier,
+        sleep_event: Event | None = None,
         *args,
         **kwargs,
     ):
@@ -74,15 +75,17 @@ class Solver:
             **kwargs,
         )
 
-        k = 0
         sync_barrier.wait()
         start_time = time.perf_counter()
 
         while not stop_event.is_set():
             self.time_list.append(time.perf_counter() - start_time)
             algorithm.update_model()
+
+            if sleep_event is not None and sleep_event.is_set():
+                continue
+
             algorithm.perform_iteration()
-            k += 1
 
     def save_results(self, save_path: str):
         os.makedirs(save_path, exist_ok=True)
