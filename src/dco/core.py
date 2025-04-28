@@ -83,6 +83,8 @@ class Solver:
             algorithm.update_model()
 
             if sleep_event is not None and sleep_event.is_set():
+                self._communicator.gather(0)
+                self._communicator.gather(1)
                 continue
 
             algorithm.perform_iteration()
