@@ -60,7 +60,8 @@ class Solver:
         alpha: int | float,
         gamma: int | float,
         stop_event: Event,
-        sync_barrier: Barrier,
+        sync_barrier: Barrier | None = None,
+        wait_time: int = 0,
         *args,
         **kwargs,
     ):
@@ -74,8 +75,11 @@ class Solver:
             **kwargs,
         )
 
-        sync_barrier.wait()
+        if sync_barrier is not None:
+            sync_barrier.wait()
         start_time = time.perf_counter()
+        if wait_time > 0:
+            time.sleep(wait_time)
 
         while not stop_event.is_set():
             self.time_list.append(time.perf_counter() - start_time)
