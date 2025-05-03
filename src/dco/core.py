@@ -62,6 +62,7 @@ class Solver:
         stop_event: Event,
         sync_barrier: Barrier | None = None,
         wait_time: int = 0,
+        global_stop_event: Event | None = None,
         *args,
         **kwargs,
     ):
@@ -75,6 +76,8 @@ class Solver:
             **kwargs,
         )
 
+        global_stop_event = global_stop_event
+
         if sync_barrier is not None:
             sync_barrier.wait()
         start_time = time.perf_counter()
@@ -86,6 +89,9 @@ class Solver:
             algorithm.update_model()
 
             algorithm.perform_iteration()
+
+            if global_stop_event is not None and global_stop_event.is_set():
+                break
 
     def save_results(self, save_path: str):
         os.makedirs(save_path, exist_ok=True)
