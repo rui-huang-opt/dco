@@ -61,7 +61,6 @@ class Solver:
         gamma: int | float,
         stop_event: Event,
         sync_barrier: Barrier,
-        sleep_event: Event | None = None,
         *args,
         **kwargs,
     ):
@@ -81,11 +80,6 @@ class Solver:
         while not stop_event.is_set():
             self.time_list.append(time.perf_counter() - start_time)
             algorithm.update_model()
-
-            if sleep_event is not None and sleep_event.is_set():
-                self._communicator.gather(0)
-                self._communicator.gather(1)
-                continue
 
             algorithm.perform_iteration()
 
