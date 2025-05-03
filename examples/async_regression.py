@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot as plt
@@ -7,7 +8,7 @@ from multiprocessing import Process, Event, Barrier
 from numpy.typing import NDArray
 from typing import List
 from dco import Model, Solver
-from gossip import Gossip, create_async_network
+from gossip import Gossip, create_async_network, NodeHandle
 
 
 def dco_task(
@@ -90,8 +91,8 @@ if __name__ == "__main__":
     x_star = x.value
 
     # Distributed optimization
-    event = Event()
-    barrier = Barrier(len(node_names))
+    nh = NodeHandle()
+    barrier = Barrier(len(node_names) + 1)
 
     alg = "RAugDGM"
     params = {
@@ -100,13 +101,13 @@ if __name__ == "__main__":
         "dim_i": dim,
         "rho_i": rho,
         "r_dir": res_dir,
-        "stop_event": event,
+        "stop_event": nh.stop_event,
         "sync_barrier": barrier,
     }
 
     processes: List[Process] = []
     gossip_network = create_async_network(
-        node_names, edge_pairs, n_channels=2, maxsize=50
+        nh, node_names, edge_pairs, n_channels=2, maxsize=50
     )
 
     for i in node_names:
@@ -118,8 +119,9 @@ if __name__ == "__main__":
         processes.append(process)
         process.start()
 
-    event.wait(0.5)
-    event.set()
+    barrier.wait()
+    time.sleep(0.5)
+    nh.stop()
 
     for process in processes:
         process.join()
