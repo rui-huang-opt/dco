@@ -7,7 +7,7 @@ import multiprocessing.synchronize as mps
 from multiprocessing import Process, Event, Barrier
 from numpy.typing import NDArray
 from typing import List
-from dco import Model, Solver
+from dco import Model, solve_async, Logger
 from gossip import Gossip, create_async_network, NodeHandle
 
 
@@ -18,31 +18,26 @@ def dco_task(
     communicator: Gossip,
     dim_i: int,
     rho_i: float,
-    r_dir: str,
     alpha: int | float,
     gamma: int | float,
     stop_event: mps.Event,
     sync_barrier: mps.Barrier,
+    logger: Logger,
 ) -> None:
     def f(var):
         return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
     model = Model(dim_i, f)
 
-    solver = Solver(model, communicator)
-    solver.solve_async(
-        algorithm,
+    solve_async(
+        model,
+        communicator,
         alpha,
         gamma,
-        stop_event=stop_event,
+        stop_event,
+        algorithm,
         sync_barrier=sync_barrier,
-    )
-
-    save_path = os.path.join(r_dir, algorithm)
-    solver.save_results(save_path)
-    np.save(
-        os.path.join(save_path, f"time_{communicator.name}.npy"),
-        np.array(solver.time_list),
+        logger=logger,
     )
 
 
@@ -50,11 +45,9 @@ if __name__ == "__main__":
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
     fig_dir = os.path.join(script_dir, "figures", "async_regression")
-    res_dir = os.path.join(script_dir, "results", "async_regression")
 
     # Create directories if they do not exist
     os.makedirs(fig_dir, exist_ok=True)
-    os.makedirs(res_dir, exist_ok=True)
 
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
@@ -88,10 +81,11 @@ if __name__ == "__main__":
     prob = cp.Problem(cp.Minimize(loss + regularizer))
     prob.solve(cp.OSQP)
 
-    x_star = x.value
+    x_star = x.value if x.value is not None else np.zeros(dim)
 
     # Distributed optimization
     nh = NodeHandle()
+    global_logger = Logger()
     barrier = Barrier(len(node_names) + 1)
 
     alg = "RAugDGM"
@@ -100,9 +94,9 @@ if __name__ == "__main__":
         "gamma": 0.31,
         "dim_i": dim,
         "rho_i": rho,
-        "r_dir": res_dir,
         "stop_event": nh.stop_event,
         "sync_barrier": barrier,
+        "logger": global_logger,
     }
 
     processes: List[Process] = []
@@ -148,15 +142,12 @@ if __name__ == "__main__":
     line_options = {"linewidth": 3, "linestyle": "--"}
 
     times = {
-        i: np.load(os.path.join(res_dir, alg, f"time_{i}.npy")) for i in node_names
-    }
-    results = {
-        i: np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names
-    }
-    mse = {
-        i: np.mean((results[i] - x_star[np.newaxis, :]) ** 2, axis=1)
+        i: np.array(global_logger.log[f"node_{i}"]["timestamp"])
+        - global_logger.log[f"node_{i}"]["start_time"]
         for i in node_names
     }
+    results = {i: np.array(global_logger.log[f"node_{i}"]["x_i"]) for i in node_names}
+    mse = {i: np.mean((results[i] - x_star) ** 2, axis=1) for i in node_names}
 
     for i in node_names:
         ax1.semilogy(

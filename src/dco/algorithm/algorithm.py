@@ -2,7 +2,7 @@ import numpy as np
 from numpy.typing import NDArray
 from abc import ABCMeta, abstractmethod
 from gossip import Gossip
-from ..utils import Registry, initialize_array
+from ..utils import Registry
 from ..model import Model
 
 
@@ -17,8 +17,8 @@ class Algorithm(metaclass=ABCMeta):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None,
     ):
         self._model = model
@@ -27,11 +27,26 @@ class Algorithm(metaclass=ABCMeta):
         self._alpha = alpha
         self._gamma = gamma
 
-        self._z_i = initialize_array(z_i_init, model.dim)
+        self._z_i = self.initialize_array(z_i_init, model.dim)
         self._x_i = model.prox_g(gamma, self._z_i)
 
-    def update_model(self):
-        self._model.x_i = self._x_i
+    @staticmethod
+    def initialize_array(
+        array: NDArray[np.float64] | None, dimension: int
+    ) -> NDArray[np.float64]:
+        if array is None:
+            initialized_array = np.zeros(dimension)
+        elif array.shape == (dimension,):
+            initialized_array = array
+        else:
+            raise ValueError(f"Input array must have dimension {dimension}.")
+
+        return initialized_array
+
+    @property
+    def x_i(self) -> NDArray[np.float64]:
+        # Ensure x_i is a numpy array, not a autograd/jax array
+        return np.asarray(self._x_i)
 
     @abstractmethod
     def perform_iteration(self): ...
@@ -42,8 +57,8 @@ class Algorithm(metaclass=ABCMeta):
         key: str,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         *args,
         **kwargs,
@@ -62,8 +77,8 @@ class DGD(Algorithm, key="DGD"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         if model.g_type != "zero":
@@ -85,8 +100,8 @@ class EXTRA(Algorithm, key="EXTRA"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
@@ -119,8 +134,8 @@ class NIDS(Algorithm, key="NIDS"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
@@ -153,8 +168,8 @@ class DIGing(Algorithm, key="DIGing"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         if model.g_type != "zero":
@@ -184,8 +199,8 @@ class AugDGM(Algorithm, key="AugDGM"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
@@ -219,13 +234,13 @@ class RGT(Algorithm, key="RGT"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
-        self._y_i = initialize_array(y_i_init, model.dim)
+        self._y_i = self.initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self):
         p_i = self._x_i + self._y_i
@@ -254,13 +269,13 @@ class WE(Algorithm, key="WE"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
-        self._y_i = initialize_array(y_i_init, model.dim)
+        self._y_i = self.initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self):
         p_i = self._x_i + self._y_i
@@ -289,14 +304,14 @@ class RAugDGM(Algorithm, key="RAugDGM"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
 
-        self._y_i = initialize_array(y_i_init, model.dim)
+        self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
     def perform_iteration(self):
@@ -325,14 +340,14 @@ class AtcWE(Algorithm, key="AtcWE"):
         self,
         model: Model,
         communicator: Gossip,
-        alpha: int | float,
-        gamma: int | float,
+        alpha: float,
+        gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
         super().__init__(model, communicator, alpha, gamma, z_i_init)
 
-        self._y_i = initialize_array(y_i_init, model.dim)
+        self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
     def perform_iteration(self):
@@ -353,47 +368,3 @@ class AtcWE(Algorithm, key="AtcWE"):
         self._x_i = new_x_i
         self._s_i = new_s_i
         self._y_i = new_y_i
-
-
-#
-# This class is not implemented yet
-#
-# class ADMM(Algorithm, key="ADMM"):
-#     def __init__(
-#         self,
-#         model: Model,
-#         communicator: Gossip,
-#         alpha: int | float,
-#         gamma: int | float,
-#         z_i_init: NDArray[np.float64] | None = None,
-#         rho: int | float = 0.5,
-#         delta: int | float = 0.5,
-#     ):
-#         if model.g_type != "zero":
-#             raise ValueError("DIGing cannot be used for composite problems.")
-#         super().__init__(model, communicator, alpha, gamma, z_i_init)
-
-#         self._rho = rho
-#         self._delta = delta
-#         self._beta = 1 + rho * self._communicator.degree
-#         self._zeta_i = {
-#             j: np.zeros(model.dim) for j in self._communicator.neighbor_names
-#         }
-
-#     def perform_iteration(self, k):
-#         y_s_stack_i = (
-#             np.hstack((self._x_i, self._model.grad_f_i(self._x_i))) + sum(self._zeta_i)
-#         ) / self._beta
-
-#         y_i = y_s_stack_i[: self._model.dim]
-#         s_i = y_s_stack_i[self._model.dim :]
-
-#         self._x_i = self._x_i + self._gamma * (y_i - self._x_i) - self._gamma * s_i
-
-#         for j in self._communicator.neighbor_names:
-#             m_ij = -self._zeta_i[j] + 2 * self._rho * y_s_stack_i
-
-#             self._communicator.send(j, m_ij)
-#             m_ji = self._communicator.recv(j)
-
-#             self._zeta_i[j] = (1 - self._delta) * self._zeta_i[j] + self._delta * m_ji

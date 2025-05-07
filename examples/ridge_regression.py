@@ -4,8 +4,7 @@ import cvxpy as cp
 import matplotlib.pyplot as plt
 from multiprocessing import Process
 from numpy.typing import NDArray
-from typing import List
-from dco import Model, Solver
+from dco import Model, solve_sync, Logger
 from gossip import Gossip, create_sync_network
 
 
@@ -16,32 +15,26 @@ def dco_task(
     communicator: Gossip,
     dim_i: int,
     rho_i: float,
-    r_dir: str,
     alpha: int | float,
     gamma: int | float,
     max_iter: int,
+    logger: Logger,
 ) -> None:
     def f(var):
         return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
     model = Model(dim_i, f)
 
-    solver = Solver(model, communicator)
-    solver.solve(algorithm, alpha, gamma, max_iter)
-
-    save_path = os.path.join(r_dir, algorithm)
-    solver.save_results(save_path)
+    solve_sync(model, communicator, alpha, gamma, algorithm, max_iter, logger=logger)
 
 
 if __name__ == "__main__":
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
     fig_dir = os.path.join(script_dir, "figures", "ridge_regression")
-    res_dir = os.path.join(script_dir, "results", "ridge_regression")
 
     # Create directories if they do not exist
     os.makedirs(fig_dir, exist_ok=True)
-    os.makedirs(res_dir, exist_ok=True)
 
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
@@ -54,7 +47,7 @@ if __name__ == "__main__":
 
     rho = 0.01
     u = {i: np.random.uniform(-1, 1, dim) for i in node_names}
-    x_tilde = {i: 0.1 * (int(i) - 1) * np.ones(dim) for i in node_names}
+    x_tilde = {i: np.multiply(0.1 * (int(i) - 1), np.ones(dim)) for i in node_names}
     epsilon = {i: np.random.normal(0, 5) for i in node_names}
     v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
@@ -68,10 +61,17 @@ if __name__ == "__main__":
     prob = cp.Problem(cp.Minimize(loss + regularizer))
     prob.solve(cp.OSQP)
 
-    x_star = x.value
+    x_star: NDArray[np.float64] = x.value  # type: ignore
 
     # Distributed optimization
-    common_params = {"dim_i": dim, "rho_i": rho, "r_dir": res_dir, "max_iter": 2000}
+    results = {}
+    performance_logger = Logger()
+    common_params = {
+        "dim_i": dim,
+        "rho_i": rho,
+        "max_iter": 2000,
+        "logger": performance_logger,
+    }
     algorithm_configs = {
         "EXTRA": {"alpha": 0.2, "gamma": 0.16},
         "NIDS": {"alpha": 0.2, "gamma": 0.21},
@@ -81,14 +81,15 @@ if __name__ == "__main__":
         "RGT": {"alpha": 0.2, "gamma": 0.11},
     }
 
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+
     for alg, params in algorithm_configs.items():
         params |= common_params
+        gossip_network = create_sync_network(node_names, edge_pairs, noise_scale=0.001)
 
-        processes: List[Process] = []
-        gossip_network = create_sync_network(
-            node_names, edge_pairs, noise_scale=0.001
-        )
-
+        processes: list[Process] = []
         for i in node_names:
             process = Process(
                 target=dco_task,
@@ -100,6 +101,8 @@ if __name__ == "__main__":
 
         for process in processes:
             process.join()
+
+        results[alg] = performance_logger.export_log()
 
     # Plot results
     plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
@@ -117,17 +120,15 @@ if __name__ == "__main__":
     )
 
     fig1, ax1 = plt.subplots()
-    ax1.set_xlim([0, 2000])
+    ax1.set_xlim((0, 2000))
     ax1.set_xlabel("iterations k")
     ax1.set_ylabel("MSE")
 
     line_options = {"linewidth": 3, "linestyle": "--"}
 
     for alg in algorithm_configs.keys():
-        results = np.stack(
-            [np.load(os.path.join(res_dir, alg, f"node_{i}.npy")) for i in node_names]
-        )
-        mse = np.mean((results - x_star[np.newaxis, np.newaxis, :]) ** 2, axis=(0, 2))
+        x_i_evo = np.stack([results[alg][f"node_{i}"]["x_i"] for i in node_names])
+        mse = np.mean((x_i_evo - x_star[np.newaxis, np.newaxis, :]) ** 2, axis=(0, 2))
 
         (line,) = ax1.semilogy(mse, label=alg, **line_options)
 

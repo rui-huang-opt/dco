@@ -7,7 +7,7 @@ from typing import List
 from multiprocessing import Process
 from numpy.typing import NDArray
 from scipy.fftpack import fft, dct, idct
-from dco import Model, Solver
+from dco import Model, solve_sync, Logger
 from gossip import Gossip, create_sync_network
 
 
@@ -18,31 +18,30 @@ def dco_task(
     communicator: Gossip,
     dim_i: int,
     lam_i: int | float,
-    r_dir: str,
     alpha: int | float,
     gamma: int | float,
     max_iter: int,
+    logger: Logger,
 ) -> None:
     from jax.numpy.linalg import norm
 
-    def f(var):
+    def f(var: NDArray[np.float64]) -> np.float64:
         return norm(theta_i @ var - y_i) ** 2
 
-    model = Model(dim_i, f, g_type="l1", lam=lam_i, grad_backend="jax")
+    model = Model(dim_i, f, g_type="l1", lam=lam_i, backend="jax")
 
-    solver = Solver(model, communicator)
-    solver.solve(algorithm, alpha, gamma, max_iter)
-
-    save_path = os.path.join(r_dir, algorithm)
-    solver.save_results(save_path)
+    x_i = solve_sync(
+        model, communicator, alpha, gamma, algorithm, max_iter, logger=logger
+    )
 
     if algorithm == "RAugDGM" and communicator.name == 3:
-        np.save(os.path.join(r_dir, f"recovered_signal.npy"), model.x_i)
+        logger.record_local(recovered_signal=x_i)
+        logger.merge_local_to_global("node_3")
 
 
 if __name__ == "__main__":
-    # Set the script type: "centralized", "distributed", or "plot results"
-    script_type = "plot results"
+    # Set the script type: "cen", "dis", or "plot"
+    script_type = "plot"
 
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -61,8 +60,8 @@ if __name__ == "__main__":
 
     graph = nx.random_geometric_graph(n_sens, radius, pos=sens_pos)
 
-    sens_names = graph.nodes
-    edge_pairs = graph.edges
+    sens_names = [i for i in graph.nodes]
+    edge_pairs = [(i, j) for i, j in graph.edges]
 
     # Original signal
     n = 4096
@@ -84,7 +83,7 @@ if __name__ == "__main__":
     lam = 0.01
 
     # Centralized optimization
-    if script_type == "centralized":
+    if script_type == "cen":
         s_hat = cp.Variable(n)
         cost = sum(
             [cp.norm2(Theta[i] @ s_hat - y[i]) ** 2 for i in sens_names]
@@ -92,12 +91,23 @@ if __name__ == "__main__":
         prob = cp.Problem(cp.Minimize(cost))
         prob.solve(solver=cp.ECOS)
 
-        s_hat_star = s_hat.value
+        s_hat_star = s_hat.value if s_hat.value is not None else np.zeros(n)
+
         np.save(os.path.join(res_dir, "s_hat_star.npy"), s_hat_star)
 
     # Distributed optimization
-    elif script_type == "distributed":
-        common_params = {"dim_i": n, "lam_i": lam, "r_dir": res_dir, "max_iter": 7000}
+    elif script_type == "dis":
+        import logging
+
+        logging.basicConfig(level=logging.INFO)
+
+        performance_logger = Logger()
+        common_params = {
+            "dim_i": n,
+            "lam_i": lam,
+            "max_iter": 7000,
+            "logger": performance_logger,
+        }
         algorithm_configs = {
             "WE": {"alpha": 0.1, "gamma": 0.893},
             "AtcWE": {"alpha": 0.1, "gamma": 1.123},
@@ -123,8 +133,10 @@ if __name__ == "__main__":
         for process in processes:
             process.join()
 
+        performance_logger.save(os.path.join(res_dir, alg))
+
     # Plot results
-    elif script_type == "plot results":
+    elif script_type == "plot":
         s_hat_star = np.load(os.path.join(res_dir, "s_hat_star.npy"))
 
         plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
@@ -161,8 +173,8 @@ if __name__ == "__main__":
         ]
 
         fig1, ax1 = plt.subplots()
-        ax1.set_xlim([0.25, 0.31])
-        ax1.set_ylim([-2, 2])
+        ax1.set_xlim((0.25, 0.31))
+        ax1.set_ylim((-2, 2))
 
         ax1.plot(t, x, "k")
         for i in sens_names:
@@ -182,8 +194,8 @@ if __name__ == "__main__":
         )
 
         fig2, ax2 = plt.subplots()
-        ax2.set_xlim([0, n // 2])
-        ax2.set_ylim([0, 1200])
+        ax2.set_xlim((0, n // 2))
+        ax2.set_ylim((0, 1200))
         ax2.set_xlabel("Frequency (Hz)")
 
         ax2.plot(psd[: n // 2], "k")
@@ -200,7 +212,7 @@ if __name__ == "__main__":
         )
 
         fig3, ax3 = plt.subplots()
-        ax3.set_xlim([0, 7000])
+        ax3.set_xlim((0, 7000))
         ax3.set_xlabel("iterations k")
         ax3.set_ylabel("MSE")
 
@@ -210,7 +222,7 @@ if __name__ == "__main__":
         for alg in algs:
             results = np.stack(
                 [
-                    np.load(os.path.join(res_dir, alg, f"node_{i}.npy"))
+                    np.load(os.path.join(res_dir, alg, f"node_{i}.npz"))["x_i"]
                     for i in sens_names
                 ]
             )
@@ -236,13 +248,14 @@ if __name__ == "__main__":
 
         fig4, ax4 = plt.subplots()
 
-        recovered_signal = np.load(os.path.join(res_dir, "recovered_signal.npy"))
-        x_recon = idct(recovered_signal, norm="ortho")
+        recovered_signal_path = os.path.join(res_dir, "RAugDGM", "node_3.npz")
+        recovered_signal = np.load(recovered_signal_path)["recovered_signal"]
+        x_recon = idct(recovered_signal, norm="ortho").reshape(-1)
 
         ax4.plot(t, x_recon, color=sens_color[3])
 
-        ax4.set_xlim([0.25, 0.31])
-        ax4.set_ylim([-2, 2])
+        ax4.set_xlim((0.25, 0.31))
+        ax4.set_ylim((-2, 2))
         ax4.set_xlabel("time (s)")
 
         fig4.savefig(
@@ -261,8 +274,8 @@ if __name__ == "__main__":
         x_recon_t = fft(x_recon)
         psd_recon = (np.abs(x_recon_t) ** 2) / n
 
-        ax5.set_xlim([0, n // 2])
-        ax5.set_ylim([0, 1200])
+        ax5.set_xlim((0, n // 2))
+        ax5.set_ylim((0, 1200))
         ax5.set_xlabel("Frequency (Hz)")
         ax5.plot(psd_recon[: n // 2], color=sens_color[3])
 

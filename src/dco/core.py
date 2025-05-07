@@ -1,101 +1,97 @@
-import os
 import time
-import numpy as np
 import logging
-from typing import List
 from multiprocessing.synchronize import Event, Barrier
+from numpy import float64
+from numpy.typing import NDArray
 from gossip import Gossip
-from .model import Model
 from .algorithm import Algorithm
+from .utils import Logger
+from .model import Model
 
-logging.basicConfig(level=logging.INFO)
 
-
-class Solver:
-    def __init__(
-        self,
-        model: Model,
-        communicator: Gossip,
-    ):
-        self._model = model
-        self._communicator = communicator
-        self.time_list: List[float] = []
-
-    def solve(
-        self,
-        algorithm_name: str,
-        alpha: int | float,
-        gamma: int | float,
-        max_iter: int = 1000,
+def solve_sync(
+    model: Model,
+    communicator: Gossip,
+    alpha: float,
+    gamma: float,
+    algorithm_name: str = "RAugDGM",
+    max_iter: int = 1000,
+    logger: Logger | None = None,
+    *args,
+    **kwargs,
+) -> NDArray[float64]:
+    algorithm = Algorithm.create(
+        algorithm_name,
+        model,
+        communicator,
+        alpha,
+        gamma,
         *args,
         **kwargs,
-    ):
-        algorithm = Algorithm.create(
-            algorithm_name,
-            self._model,
-            self._communicator,
-            alpha,
-            gamma,
-            *args,
-            **kwargs,
-        )
+    )
 
-        begin = time.perf_counter()
+    begin_time = time.perf_counter()
 
-        for _ in range(max_iter):
-            algorithm.update_model()
-            algorithm.perform_iteration()
+    for k in range(max_iter):
+        if logger is not None:
+            logger.record_local(iteration=k, x_i=algorithm.x_i)
 
-        end = time.perf_counter()
+        algorithm.perform_iteration()
 
-        logging.info(
-            f"algorithm: {algorithm_name}, "
-            f"node: {self._communicator.name}, "
-            f"elapsed time: {end - begin:.6f}s"
-        )
+    end_time = time.perf_counter()
 
-    def solve_async(
-        self,
-        algorithm_name: str,
-        alpha: int | float,
-        gamma: int | float,
-        stop_event: Event,
-        sync_barrier: Barrier | None = None,
-        wait_time: int = 0,
-        global_stop_event: Event | None = None,
+    logging.info(
+        f"Node {communicator.name} completed algorithm '{algorithm_name}' "
+        f"in {end_time - begin_time:.6f} seconds."
+    )
+
+    if logger is not None:
+        logger.merge_local_to_global(f"node_{communicator.name}")
+
+    return algorithm.x_i
+
+
+def solve_async(
+    model: Model,
+    communicator: Gossip,
+    alpha: float,
+    gamma: float,
+    stop_event: Event,
+    algorithm_name: str = "RAugDGM",
+    wait_time: float = 0.0,
+    sync_barrier: Barrier | None = None,
+    global_stop_event: Event | None = None,
+    logger: Logger | None = None,
+    *args,
+    **kwargs,
+) -> NDArray[float64]:
+    algorithm = Algorithm.create(
+        algorithm_name,
+        model,
+        communicator,
+        alpha,
+        gamma,
         *args,
         **kwargs,
-    ):
-        algorithm = Algorithm.create(
-            algorithm_name,
-            self._model,
-            self._communicator,
-            alpha,
-            gamma,
-            *args,
-            **kwargs,
-        )
+    )
 
-        global_stop_event = global_stop_event
+    if sync_barrier is not None:
+        sync_barrier.wait()
+    if logger is not None:
+        logger.record_local(start_time=time.perf_counter())
+    if wait_time > 0:
+        time.sleep(wait_time)
 
-        if sync_barrier is not None:
-            sync_barrier.wait()
-        start_time = time.perf_counter()
-        if wait_time > 0:
-            time.sleep(wait_time)
+    while not stop_event.is_set():
+        if logger is not None:
+            logger.record_local(timestamp=time.perf_counter(), x_i=algorithm.x_i)
 
-        while not stop_event.is_set():
-            self.time_list.append(time.perf_counter() - start_time)
-            algorithm.update_model()
+        algorithm.perform_iteration()
 
-            algorithm.perform_iteration()
+        if global_stop_event is not None and global_stop_event.is_set():
+            break
 
-            if global_stop_event is not None and global_stop_event.is_set():
-                break
+    if logger is not None:
+        logger.merge_local_to_global(f"node_{communicator.name}")
 
-    def save_results(self, save_path: str):
-        os.makedirs(save_path, exist_ok=True)
-        np.save(
-            os.path.join(save_path, f"node_{self._communicator.name}.npy"),
-            self._model.x_i_history,
-        )
+    return algorithm.x_i

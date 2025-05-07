@@ -1,2 +1,2 @@
+from .logger import Logger
 from .registry import Registry
-from .check import initialize_array

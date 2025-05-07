@@ -7,6 +7,7 @@ from scipy.optimize import minimize, OptimizeResult
 from numpy.typing import NDArray
 from numpy.linalg import norm
 from matplotlib.colors import BoundaryNorm
+from dco import Logger
 from gossip import Gossip, create_sync_network
 
 
@@ -18,31 +19,28 @@ def dco_task(
     dim_i: int,
     a_i: NDArray[np.float64],
     rho_i: int | float,
-    r_dir: str,
     alpha: int | float,
     gamma: int | float,
     max_iter: int,
+    logger: Logger,
 ) -> None:
     import jax.numpy as jnp
-    from dco import Model, Solver
+    from jax import Array
+    from dco import solve_sync, Model
 
-    def f(var):
-        return jnp.mean(
-            (meas_i - a_i / jnp.linalg.norm(var - sens_loc_i)) ** 2
-        ) + rho_i * jnp.sum(var**2)
+    def f(var: NDArray[np.float64]) -> Array:
+        signal_diff = meas_i - a_i / jnp.linalg.norm(var - sens_loc_i)
+        regularizer = rho_i * jnp.sum(jnp.square(var))
+        return jnp.mean(signal_diff**2) + regularizer
 
-    model = Model(dim_i, f, grad_backend="jax")
+    model = Model(dim_i, f, backend="jax")
 
-    solver = Solver(model, communicator)
-    solver.solve(algorithm, alpha, gamma, max_iter)
-
-    save_path = os.path.join(r_dir, algorithm)
-    solver.save_results(save_path)
+    solve_sync(model, communicator, alpha, gamma, algorithm, max_iter, logger=logger)
 
 
 if __name__ == "__main__":
-    # Set the script type: "centralized", "distributed", or "plot results"
-    script_type = "plot results"
+    # Set the script type: "cen", "dis", or "plot"
+    script_type = "plot"
 
     # Set up directories for figures and results
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -60,15 +58,15 @@ if __name__ == "__main__":
     # Communication topology
     sens_names = [i for i in range(10)]
     edge_pairs = [
-        [0, 3],
-        [3, 9],
-        [0, 2],
-        [1, 2],
-        [1, 7],
-        [7, 8],
-        [1, 5],
-        [5, 6],
-        [4, 6],
+        (0, 3),
+        (3, 9),
+        (0, 2),
+        (1, 2),
+        (1, 7),
+        (7, 8),
+        (1, 5),
+        (5, 6),
+        (4, 6),
     ]
 
     # Sensor locations
@@ -89,10 +87,10 @@ if __name__ == "__main__":
     rho = 0.0001
 
     # Centralized optimization
-    if script_type == "centralized":
+    if script_type == "cen":
 
-        def f_cen(theta: NDArray[np.float64]) -> float:
-            res = 0
+        def f_cen(theta: NDArray[np.float64]) -> np.float64:
+            res = 0.0
 
             for i in range(n_sens):
                 for j in range(n_meas):
@@ -103,20 +101,20 @@ if __name__ == "__main__":
             return res
 
         result: OptimizeResult = minimize(f_cen, np.array([0, 0]))
-        theta_star = result.get("x")
+        theta_star = result.get("x", np.zeros(2))
 
         print(f"Centralized solution: {theta_star}")
-
         np.save(os.path.join(res_dir, "theta_star.npy"), theta_star)
 
     # Distributed optimization
-    elif script_type == "distributed":
+    elif script_type == "dis":
+        performance_logger = Logger()
         common_params = {
             "dim_i": 2,
             "a_i": A,
             "rho_i": rho,
-            "r_dir": res_dir,
             "max_iter": 7000,
+            "logger": performance_logger,
         }
         algorithm_configs = {
             "WE": {"alpha": 0.15, "gamma": 0.050},
@@ -142,8 +140,10 @@ if __name__ == "__main__":
         for process in processes:
             process.join()
 
+        performance_logger.save(os.path.join(res_dir, alg))
+
     # Plot results
-    elif script_type == "plot results":
+    elif script_type == "plot":
         plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
         plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
 
@@ -160,8 +160,8 @@ if __name__ == "__main__":
 
         fig1, ax1 = plt.subplots(figsize=(8, 6))
         ax1.set_aspect(1)
-        ax1.set_xlim([-5, 35])
-        ax1.set_ylim([19, 59])
+        ax1.set_xlim((-5, 35))
+        ax1.set_ylim((19, 59))
         ax1.set_xlabel("$x$-axis", fontsize=14)
         ax1.set_ylabel("$y$-axis", fontsize=14)
         ax1.tick_params(axis="both", which="major", labelsize=12)
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         )
 
         fig2, ax2 = plt.subplots()
-        ax2.set_xlim([0, 7000])
+        ax2.set_xlim((0, 7000))
         ax2.set_xlabel("iterations k")
         ax2.set_ylabel("MSE")
 
@@ -241,7 +241,7 @@ if __name__ == "__main__":
         for alg in algs:
             results = np.stack(
                 [
-                    np.load(os.path.join(res_dir, alg, f"node_{i}.npy"))
+                    np.load(os.path.join(res_dir, alg, f"node_{i}.npz"))["x_i"]
                     for i in sens_names
                 ]
             )

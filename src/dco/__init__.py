@@ -1,2 +1,3 @@
+from .core import solve_sync, solve_async
 from .model import Model
-from .core import Solver
+from .utils import Logger

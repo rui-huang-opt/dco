@@ -135,8 +135,8 @@ ax3.legend(loc="upper left", fontsize=12, frameon=True, fancybox=True, shadow=Tr
 ax4.set_aspect(1)
 ax4.set_xlabel("$x_{1}$", fontsize=14)
 ax4.set_ylabel("$x_{2}$", fontsize=14)
-ax4.set_xlim([-0.6, 0.8])
-ax4.set_ylim([-0.6, 0.8])
+ax4.set_xlim((-0.6, 0.8))
+ax4.set_ylim((-0.6, 0.8))
 ax4.tick_params(axis="both", which="major", labelsize=12)
 
 ax4.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=1.5)

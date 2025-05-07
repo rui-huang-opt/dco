@@ -1,13 +1,13 @@
-from typing import Callable
+from typing import Callable, Any
 from numpy import float64
 from numpy.typing import NDArray
 
 
 def grad(
-    f: Callable[[NDArray[float64]], float], backend: str
+    f: Callable[[NDArray[float64]], Any], backend: str
 ) -> Callable[[NDArray[float64]], NDArray[float64]]:
     if backend == "jax":
-        from jax import config, grad, jit
+        from jax import grad, jit, config
 
         config.update("jax_platforms", "cpu")
 
@@ -15,8 +15,9 @@ def grad(
 
     elif backend == "autograd":
         from autograd import grad
+        import autograd.numpy as anp
 
-        return grad(f)
+        return grad(f)  # type: ignore
 
     else:
         raise ValueError(f"Unsupported backend: {backend}")
