@@ -141,13 +141,13 @@ if __name__ == "__main__":
 
     line_options = {"linewidth": 3, "linestyle": "--"}
 
+    results = global_logger.export_log()
     times = {
-        i: np.array(global_logger.log[f"node_{i}"]["timestamp"])
-        - global_logger.log[f"node_{i}"]["start_time"]
+        i: results[f"node_{i}"]["timestamp"] - results[f"node_{i}"]["start_time"]
         for i in node_names
     }
-    results = {i: np.array(global_logger.log[f"node_{i}"]["x_i"]) for i in node_names}
-    mse = {i: np.mean((results[i] - x_star) ** 2, axis=1) for i in node_names}
+    x_evo = {i: results[f"node_{i}"]["x_i"] for i in node_names}
+    mse = {i: np.mean((x_evo[i] - x_star) ** 2, axis=1) for i in node_names}
 
     for i in node_names:
         ax1.semilogy(

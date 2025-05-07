@@ -1,7 +1,7 @@
 import time
 import logging
 from multiprocessing.synchronize import Event, Barrier
-from numpy import float64
+from numpy import float64, nan
 from numpy.typing import NDArray
 from gossip import Gossip
 from .algorithm import Algorithm
@@ -92,6 +92,7 @@ def solve_async(
             break
 
     if logger is not None:
+        logger.record_local(timestamp=nan, x_i=algorithm.x_i)
         logger.merge_local_to_global(f"node_{communicator.name}")
 
     return algorithm.x_i
