@@ -230,7 +230,7 @@ if __name__ == "__main__":
 
         fig2, ax2 = plt.subplots()
         ax2.set_xlim((0, 7000))
-        ax2.set_xlabel("iterations k")
+        ax2.set_xlabel("iterations $k$")
         ax2.set_ylabel("MSE")
 
         line_options = {"linewidth": 3, "linestyle": "--"}

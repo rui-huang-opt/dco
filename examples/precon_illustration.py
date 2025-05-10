@@ -68,14 +68,10 @@ for k in range(T - 1):
         A @ xx_1[:, k] - gamma * (2 * Q @ xx_1[:, k] + p) - sqrt_C @ yy_1[:, k]
     )
     xx_2[:, k + 1] = (
-        A @ xx_2[:, k]
-        - gamma * B_2 @ (2 * Q @ xx_2[:, k] + p)
-        - sqrt_C @ yy_2[:, k]
+        A @ xx_2[:, k] - gamma * B_2 @ (2 * Q @ xx_2[:, k] + p) - sqrt_C @ yy_2[:, k]
     )
     xx_3[:, k + 1] = (
-        A @ xx_3[:, k]
-        - gamma * B_3 @ (2 * Q @ xx_3[:, k] + p)
-        - sqrt_C @ yy_3[:, k]
+        A @ xx_3[:, k] - gamma * B_3 @ (2 * Q @ xx_3[:, k] + p) - sqrt_C @ yy_3[:, k]
     )
 
     yy_1[:, k + 1] = yy_1[:, k] + sqrt_C @ xx_1[:, k + 1]
@@ -85,95 +81,73 @@ for k in range(T - 1):
 # Plot results
 plt.rcParams["text.usetex"] = True  # 使用外部 LaTeX 编译器
 plt.rcParams["font.family"] = "serif"  # 设置字体为 LaTeX 的默认 serif 字体
+plt.rcParams.update({"font.size": 25})
 
-plt.rcParams.update(
-    {
-        "font.size": 14,  # 全局字体大小
-        "axes.titlesize": 16,  # 坐标轴标题字体大小
-        "axes.labelsize": 16,  # 坐标轴标签字体大小
-        "xtick.labelsize": 16,  # x轴刻度标签字体大小
-        "ytick.labelsize": 16,  # y轴刻度标签字体大小
-        "legend.fontsize": 13,  # 图例字体大小
-    }
-)
-
-fig1, ax1 = plt.subplots(figsize=(8, 8))
+fig1, ax1 = plt.subplots(figsize=(9, 9))
 ax1.set_aspect(1)
 
-fig2, ax2 = plt.subplots(figsize=(8, 8))
+fig2, ax2 = plt.subplots(figsize=(9, 9))
 ax2.set_aspect(1)
 
-fig3, ax3 = plt.subplots(figsize=(8, 8))
+fig3, ax3 = plt.subplots(figsize=(9, 9))
 ax3.set_aspect(1)
 
-fig4, ax4 = plt.subplots(figsize=(8, 8))
+fig4, ax4 = plt.subplots(figsize=(9, 9))
 ax4.set_aspect(1)
 
 ax1.contourf(X, Y, Z, levels=20, cmap="YlGnBu", alpha=0.8)
 ax2.contourf(X, Y, Z_2, levels=20, cmap="YlGnBu", alpha=0.8)
 ax3.contourf(X, Y, Z_3, levels=20, cmap="YlGnBu", alpha=0.8)
 
-ax1.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=1.5)
-ax2.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=1.5)
-ax3.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=1.5)
+ax1.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=3)
+ax2.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=3)
+ax3.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=3)
 
-ax1.set_xlabel("$x_{1}$", fontsize=14)
-ax1.set_ylabel("$x_{2}$", fontsize=14)
-ax1.tick_params(axis="both", which="major", labelsize=12)
-ax1.legend(loc="upper left", fontsize=12, frameon=True, fancybox=True, shadow=True)
+ax1.set_xlabel("$x_{1}$")
+ax1.set_ylabel("$x_{2}$")
+ax1.legend(loc="upper left", fontsize=18, frameon=True, fancybox=True, shadow=True)
 
-ax2.set_xlabel("$x_{1}$", fontsize=14)
-ax2.set_ylabel("$x_{2}$", fontsize=14)
-ax2.tick_params(axis="both", which="major", labelsize=12)
-ax2.legend(loc="upper left", fontsize=12, frameon=True, fancybox=True, shadow=True)
+ax2.set_xlabel("$x_{1}$")
+ax2.set_ylabel("$x_{2}$")
+ax2.legend(loc="upper left", fontsize=18, frameon=True, fancybox=True, shadow=True)
 
-ax3.set_xlabel("$x_{1}$", fontsize=14)
-ax3.set_ylabel("$x_{2}$", fontsize=14)
-ax3.tick_params(axis="both", which="major", labelsize=12)
-ax3.legend(loc="upper left", fontsize=12, frameon=True, fancybox=True, shadow=True)
+ax3.set_xlabel("$x_{1}$")
+ax3.set_ylabel("$x_{2}$")
+ax3.legend(loc="upper left", fontsize=18, frameon=True, fancybox=True, shadow=True)
 
 ax4.set_aspect(1)
-ax4.set_xlabel("$x_{1}$", fontsize=14)
-ax4.set_ylabel("$x_{2}$", fontsize=14)
+ax4.set_xlabel("$x_{1}$")
+ax4.set_ylabel("$x_{2}$")
 ax4.set_xlim((-0.6, 0.8))
 ax4.set_ylim((-0.6, 0.8))
-ax4.tick_params(axis="both", which="major", labelsize=12)
 
-ax4.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=1.5)
+ax4.plot([-0.6, 0.8], [-0.6, 0.8], "k--", label="$x_{1}=x_{2}$", linewidth=3)
 contour = ax4.contourf(X, Y, Z, levels=20, cmap="YlGnBu", alpha=0.8)
 
-ax4.plot(xx_1[0, :], xx_1[1, :], "o-", label="$i=1$", markersize=4, linewidth=1.5)
-ax4.plot(xx_2[0, :], xx_2[1, :], "s-", label="$i=2$", markersize=4, linewidth=1.5)
-ax4.plot(xx_3[0, :], xx_3[1, :], "d-", label="$i=3$", markersize=4, linewidth=1.5)
+ax4.plot(xx_1[0, :], xx_1[1, :], "o-", label="$i=1$", markersize=8, linewidth=3)
+ax4.plot(xx_2[0, :], xx_2[1, :], "s-", label="$i=2$", markersize=8, linewidth=3)
+ax4.plot(xx_3[0, :], xx_3[1, :], "d-", label="$i=3$", markersize=8, linewidth=3)
 
-ax4.plot(0.5, 0.5, "r*", markersize=12, label="Optimal Point (0.5, 0.5)")
+ax4.plot(0.5, 0.5, "r*", markersize=18, label="Optimal Point (0.5, 0.5)")
 
-ax4.legend(loc="upper left", fontsize=12, frameon=True, fancybox=True, shadow=True)
+ax4.legend(loc="upper left", fontsize=18, frameon=True, fancybox=True, shadow=True)
 
-fig1.savefig(
-    os.path.join(fig_dir, "g_1_level_set.png"), dpi=300, bbox_inches="tight"
-)
+fig1.savefig(os.path.join(fig_dir, "g_1_level_set.png"), dpi=300, bbox_inches="tight")
 fig1.savefig(
     os.path.join(fig_dir, "g_1_level_set.pdf"), format="pdf", bbox_inches="tight"
 )
 
-fig2.savefig(
-    os.path.join(fig_dir, "g_2_level_set.png"), dpi=300, bbox_inches="tight"
-)
+fig2.savefig(os.path.join(fig_dir, "g_2_level_set.png"), dpi=300, bbox_inches="tight")
 fig2.savefig(
     os.path.join(fig_dir, "g_2_level_set.pdf"), format="pdf", bbox_inches="tight"
 )
 
-fig3.savefig(
-    os.path.join(fig_dir, "g_3_level_set.png"), dpi=300, bbox_inches="tight"
-)
+fig3.savefig(os.path.join(fig_dir, "g_3_level_set.png"), dpi=300, bbox_inches="tight")
 fig3.savefig(
     os.path.join(fig_dir, "g_3_level_set.pdf"), format="pdf", bbox_inches="tight"
 )
 
-fig4.savefig(
-    os.path.join(fig_dir, "precon_traj.png"), dpi=300, bbox_inches="tight"
-)
+fig4.savefig(os.path.join(fig_dir, "precon_traj.png"), dpi=300, bbox_inches="tight")
 fig4.savefig(
     os.path.join(fig_dir, "precon_traj.pdf"), format="pdf", bbox_inches="tight"
 )
