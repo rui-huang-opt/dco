@@ -1,12 +1,11 @@
 import os
 import numpy as np
-from abc import ABCMeta
 from multiprocessing import Manager
 from multiprocessing.managers import DictProxy, ListProxy
 from numpy.typing import NDArray
 
 
-class Logger(metaclass=ABCMeta):
+class Logger:
     def __init__(self):
         self._manager = Manager()
         self._log: DictProxy[
