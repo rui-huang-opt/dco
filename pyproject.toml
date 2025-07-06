@@ -11,7 +11,7 @@ authors = [{ name = "Rui Huang", email = "R.Huang@lboro.ac.uk" }]
 
 dependencies = [
     "autograd>=1.7.0",
-    "gossip @ git+https://github.com/rui-huang-opt/gossip.git",
+    "topolink @ git+https://github.com/rui-huang-opt/topolink.git@0.1.2",
 ]
 
 [project.optional-dependencies]
