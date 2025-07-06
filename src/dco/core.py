@@ -4,7 +4,6 @@ from multiprocessing.synchronize import Event, Barrier
 from numpy import float64, nan
 from numpy.typing import NDArray
 from topolink import NodeHandle
-from gossip import Gossip
 from .algorithm import Algorithm
 from .utils import Logger
 from .model import Model
@@ -64,7 +63,6 @@ def solve_sync(
 
 def solve_async(
     model: Model,
-    communicator: Gossip,
     alpha: float,
     gamma: float,
     stop_event: Event,
