@@ -54,11 +54,8 @@ class L1(Regularizer, key="l1"):
         super().__init__(lam)
 
     def __call__(self, x: np.ndarray) -> np.float64:
-        return self._lam * norm(x, ord=1)
+        return (self._lam * norm(x, ord=1)).astype(np.float64)
 
     def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
         threshold = tau * self._lam
-        return np.multiply(
-            np.sign(x),
-            np.maximum(np.abs(x) - threshold, 0),
-        )
+        return np.multiply(np.sign(x), np.maximum(np.abs(x) - threshold, 0))

@@ -3,6 +3,7 @@ import logging
 from multiprocessing.synchronize import Event, Barrier
 from numpy import float64, nan
 from numpy.typing import NDArray
+from topolink import NodeHandle
 from gossip import Gossip
 from .algorithm import Algorithm
 from .utils import Logger
@@ -10,43 +11,53 @@ from .model import Model
 
 
 def solve_sync(
+    name: str,
     model: Model,
-    communicator: Gossip,
     alpha: float,
     gamma: float,
     algorithm_name: str = "RAugDGM",
     max_iter: int = 1000,
-    logger: Logger | None = None,
+    server_address: str | None = None,
     *args,
     **kwargs,
 ) -> NDArray[float64]:
+    node_handle = NodeHandle(name, server_address=server_address)
+
     algorithm = Algorithm.create(
         algorithm_name,
         model,
-        communicator,
+        node_handle,
         alpha,
         gamma,
         *args,
         **kwargs,
     )
 
+    logger = logging.getLogger("dco.solve_sync")
+
+    logger.info(
+        f"Node {name} starting algorithm '{algorithm_name}' "
+        f"with parameters: alpha={alpha}, gamma={gamma}, max_iter={max_iter}."
+    )
+
+    logger.info(f"Node {name} initial state: x_i={algorithm.x_i}")
+
     begin_time = time.perf_counter()
 
     for k in range(max_iter):
-        if logger is not None:
-            logger.record_local(iteration=k, x_i=algorithm.x_i)
-
+        # logger.info(f"Node {name} at iteration {k}: state: {algorithm.x_i}")
         algorithm.perform_iteration()
 
     end_time = time.perf_counter()
 
-    logging.info(
-        f"Node {communicator.name} completed algorithm '{algorithm_name}' "
-        f"in {end_time - begin_time:.6f} seconds."
+    logger.info(
+        f"Node {name} final state after {max_iter} iterations: x_i={algorithm.x_i}"
     )
 
-    if logger is not None:
-        logger.merge_local_to_global(f"node_{communicator.name}")
+    logger.info(
+        f"Node {name} completed algorithm '{algorithm_name}' "
+        f"in {end_time - begin_time:.6f} seconds."
+    )
 
     return algorithm.x_i
 
@@ -65,34 +76,7 @@ def solve_async(
     *args,
     **kwargs,
 ) -> NDArray[float64]:
-    algorithm = Algorithm.create(
-        algorithm_name,
-        model,
-        communicator,
-        alpha,
-        gamma,
-        *args,
-        **kwargs,
+    raise NotImplementedError(
+        "Asynchronous solving is not implemented yet. "
+        "Please use solve_sync for synchronous solving."
     )
-
-    if sync_barrier is not None:
-        sync_barrier.wait()
-    if logger is not None:
-        logger.record_local(start_time=time.perf_counter())
-    if wait_time > 0:
-        time.sleep(wait_time)
-
-    while not stop_event.is_set():
-        if logger is not None:
-            logger.record_local(timestamp=time.perf_counter(), x_i=algorithm.x_i)
-
-        algorithm.perform_iteration()
-
-        if global_stop_event is not None and global_stop_event.is_set():
-            break
-
-    if logger is not None:
-        logger.record_local(timestamp=nan, x_i=algorithm.x_i)
-        logger.merge_local_to_global(f"node_{communicator.name}")
-
-    return algorithm.x_i

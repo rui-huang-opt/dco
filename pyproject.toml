@@ -16,7 +16,6 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["matplotlib>=3.10.1", "cvxpy[ECOS]>=1.6.3", "networkx>=3.4.2"]
-
 jax = ["jax>=0.5.3"]
 
 [tool.setuptools.packages.find]

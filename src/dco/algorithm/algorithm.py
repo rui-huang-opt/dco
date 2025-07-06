@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 from abc import ABCMeta, abstractmethod
-from gossip import Gossip
+from topolink import NodeHandle
 from ..utils import Registry
 from ..model import Model
 
@@ -16,13 +16,13 @@ class Algorithm(metaclass=ABCMeta):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None,
     ):
         self._model = model
-        self._communicator = communicator
+        self._node_handle = node_handle
 
         self._alpha = alpha
         self._gamma = gamma
@@ -56,7 +56,7 @@ class Algorithm(metaclass=ABCMeta):
         cls,
         key: str,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
@@ -64,7 +64,7 @@ class Algorithm(metaclass=ABCMeta):
         **kwargs,
     ):
         return cls.registry.create(
-            key, model, communicator, alpha, gamma, z_i_init, *args, **kwargs
+            key, model, node_handle, alpha, gamma, z_i_init, *args, **kwargs
         )
 
 
@@ -76,18 +76,18 @@ class DGD(Algorithm, key="DGD"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         if model.g_type != "zero":
             raise ValueError("DIGing cannot be used for composite problems.")
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._k = 0
 
     def perform_iteration(self):
-        delta_x_i = self._communicator.compute_laplacian(self._x_i, index=0)
+        delta_x_i = self._node_handle.laplacian(self._x_i)
         gamma_bar = self._gamma / (self._k + 1)
         grad_val = self._model.grad_f_i(self._x_i)
 
@@ -99,14 +99,14 @@ class EXTRA(Algorithm, key="EXTRA"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
-        delta_x_i = self._communicator.compute_laplacian(self._x_i, index=0)
+        delta_x_i = self._node_handle.laplacian(self._x_i)
 
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._new_z_i = (
@@ -117,7 +117,7 @@ class EXTRA(Algorithm, key="EXTRA"):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         p_i = self._new_z_i + new_x_i - self._x_i
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=1)
+        delta_p_i = self._node_handle.laplacian(p_i)
         new_grad_val = self._model.grad_f_i(new_x_i)
 
         new_new_z_i = (p_i - 0.5 * self._alpha * delta_p_i) - self._gamma * (
@@ -133,12 +133,12 @@ class NIDS(Algorithm, key="NIDS"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._new_z_i = self._x_i - self._gamma * self._grad_val
@@ -154,7 +154,7 @@ class NIDS(Algorithm, key="NIDS"):
             - self._gamma * (new_grad_val - self._grad_val)
         )
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
+        delta_p_i = self._node_handle.laplacian(p_i)
 
         new_new_z_i = p_i - 0.5 * self._alpha * delta_p_i
 
@@ -167,25 +167,25 @@ class DIGing(Algorithm, key="DIGing"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
         if model.g_type != "zero":
             raise ValueError("DIGing cannot be used for composite problems.")
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
 
     def perform_iteration(self):
-        delta_x_i = self._communicator.compute_laplacian(self._x_i, index=0)
+        delta_x_i = self._node_handle.laplacian(self._x_i)
 
         new_x_i = self._x_i - self._alpha * delta_x_i - self._gamma * self._y_i
         new_grad_val = self._model.grad_f_i(new_x_i)
 
-        delta_y_i = self._communicator.compute_laplacian(self._y_i, index=1)
+        delta_y_i = self._node_handle.laplacian(self._y_i)
 
         new_y_i = self._y_i - self._alpha * delta_y_i + new_grad_val - self._grad_val
 
@@ -198,12 +198,12 @@ class AugDGM(Algorithm, key="AugDGM"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
@@ -211,7 +211,7 @@ class AugDGM(Algorithm, key="AugDGM"):
     def perform_iteration(self):
         s_i = self._x_i - self._gamma * self._y_i
 
-        delta_s_i = self._communicator.compute_laplacian(s_i, index=0)
+        delta_s_i = self._node_handle.laplacian(s_i)
 
         new_z_i = s_i - self._alpha * delta_s_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
@@ -220,7 +220,7 @@ class AugDGM(Algorithm, key="AugDGM"):
         p_i = self._y_i + new_grad_val - self._grad_val
         q_i = p_i + (new_z_i - new_x_i) / self._gamma
 
-        delta_q_i = self._communicator.compute_laplacian(q_i, index=1)
+        delta_q_i = self._node_handle.laplacian(q_i)
 
         new_y_i = p_i - self._alpha * delta_q_i
 
@@ -233,19 +233,19 @@ class RGT(Algorithm, key="RGT"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._y_i = self.initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self):
         p_i = self._x_i + self._y_i
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
+        delta_p_i = self._node_handle.laplacian(p_i)
 
         new_z_i = (
             self._x_i
@@ -256,7 +256,7 @@ class RGT(Algorithm, key="RGT"):
 
         q_i = new_x_i - self._x_i - new_z_i
 
-        delta_q_i = self._communicator.compute_laplacian(q_i, index=1)
+        delta_q_i = self._node_handle.laplacian(q_i)
 
         new_y_i = self._y_i + new_x_i - self._x_i - self._alpha * delta_q_i
 
@@ -268,19 +268,19 @@ class WE(Algorithm, key="WE"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._y_i = self.initialize_array(y_i_init, model.dim)
 
     def perform_iteration(self):
         p_i = self._x_i + self._y_i
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
+        delta_p_i = self._node_handle.laplacian(p_i)
 
         new_z_i = (
             self._x_i
@@ -291,7 +291,7 @@ class WE(Algorithm, key="WE"):
 
         q_i = new_z_i - new_x_i + self._x_i
 
-        delta_q_i = self._communicator.compute_laplacian(q_i, index=1)
+        delta_q_i = self._node_handle.laplacian(q_i)
 
         new_y_i = self._y_i + self._alpha * delta_q_i
 
@@ -303,13 +303,13 @@ class RAugDGM(Algorithm, key="RAugDGM"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
         self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
@@ -317,7 +317,7 @@ class RAugDGM(Algorithm, key="RAugDGM"):
     def perform_iteration(self):
         p_i = self._s_i + self._y_i
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
+        delta_p_i = self._node_handle.laplacian(p_i)
 
         new_z_i = self._s_i - self._alpha * delta_p_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
@@ -326,7 +326,7 @@ class RAugDGM(Algorithm, key="RAugDGM"):
         q_i = new_s_i - self._s_i
         t_i = q_i - new_z_i
 
-        delta_t_i = self._communicator.compute_laplacian(t_i, index=1)
+        delta_t_i = self._node_handle.laplacian(t_i)
 
         new_y_i = self._y_i + q_i - self._alpha * delta_t_i
 
@@ -339,13 +339,13 @@ class AtcWE(Algorithm, key="AtcWE"):
     def __init__(
         self,
         model: Model,
-        communicator: Gossip,
+        node_handle: NodeHandle,
         alpha: float,
         gamma: float,
         z_i_init: NDArray[np.float64] | None = None,
         y_i_init: NDArray[np.float64] | None = None,
     ):
-        super().__init__(model, communicator, alpha, gamma, z_i_init)
+        super().__init__(model, node_handle, alpha, gamma, z_i_init)
 
         self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
@@ -353,7 +353,7 @@ class AtcWE(Algorithm, key="AtcWE"):
     def perform_iteration(self):
         p_i = self._s_i + self._y_i
 
-        delta_p_i = self._communicator.compute_laplacian(p_i, index=0)
+        delta_p_i = self._node_handle.laplacian(p_i)
 
         new_z_i = self._s_i - self._alpha * delta_p_i
         new_x_i = self._model.prox_g(self._gamma, new_z_i)
@@ -361,7 +361,7 @@ class AtcWE(Algorithm, key="AtcWE"):
 
         q_i = new_z_i - new_s_i + self._s_i
 
-        delta_q_i = self._communicator.compute_laplacian(q_i, index=1)
+        delta_q_i = self._node_handle.laplacian(q_i)
 
         new_y_i = self._y_i + self._alpha * delta_q_i
 

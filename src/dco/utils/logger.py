@@ -43,4 +43,4 @@ class Logger:
         log = self.export_log()
         for name, data in log.items():
             file_path = os.path.join(path, f"{name}.npz")
-            np.savez(file_path, **data)
+            np.savez(file_path, **data)  # type: ignore
