@@ -20,7 +20,15 @@ def dco_task(
 
     model = Model(dim_i, f)
 
-    solve_sync(name, model, alpha, gamma, algorithm, max_iter)
+    solve_sync(
+        name,
+        model,
+        alpha,
+        gamma,
+        algorithm,
+        max_iter,
+        server_address="192.169.1.100:5555",
+    )
 
 
 if __name__ == "__main__":
