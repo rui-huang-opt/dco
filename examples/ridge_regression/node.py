@@ -27,7 +27,7 @@ def dco_task(
         gamma,
         algorithm,
         max_iter,
-        server_address="192.169.1.100:5555",
+        server_address="192.168.1.100:5555",
     )
 
 
