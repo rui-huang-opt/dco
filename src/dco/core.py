@@ -51,8 +51,8 @@ def solve_sync(
     logger.info(f"Node {name} final state: {algorithm.x_i}")
 
     logger.info(
-        f"Node {name} completed algorithm '{algorithm_name}'\n"
-        f"after {max_iter} iterations,\n"
+        f"Node {name} completed algorithm '{algorithm_name}' "
+        f"after {max_iter} iterations, "
         f"in {end_time - begin_time:.6f} seconds."
     )
 
