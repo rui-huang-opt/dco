@@ -36,7 +36,7 @@ def solve_sync(
 
     logger.info(
         f"Node {name} starting algorithm '{algorithm_name}' "
-        f"with parameters: alpha={alpha}, gamma={gamma}, max_iter={max_iter}."
+        f"with parameters: alpha={alpha}, gamma={gamma}."
     )
 
     logger.info(f"Node {name} initial state: {algorithm.x_i}")
@@ -48,10 +48,11 @@ def solve_sync(
 
     end_time = time.perf_counter()
 
-    logger.info(f"Node {name} final state after {max_iter} iterations: {algorithm.x_i}")
+    logger.info(f"Node {name} final state: {algorithm.x_i}")
 
     logger.info(
-        f"Node {name} completed algorithm '{algorithm_name}' "
+        f"Node {name} completed algorithm '{algorithm_name}'\n"
+        f"after {max_iter} iterations,\n"
         f"in {end_time - begin_time:.6f} seconds."
     )
 
