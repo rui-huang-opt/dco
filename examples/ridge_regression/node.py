@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # Distributed optimization
     results = {}
-    common_params = {"dim_i": dim, "rho_i": rho, "max_iter": 2000}
+    common_params = {"dim_i": dim, "rho_i": rho, "max_iter": 500}
     algorithm_configs = {
         "EXTRA": {"alpha": 0.2, "gamma": 0.16},
         "NIDS": {"alpha": 0.2, "gamma": 0.21},
