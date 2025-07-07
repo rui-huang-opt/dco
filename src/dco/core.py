@@ -44,7 +44,6 @@ def solve_sync(
     begin_time = time.perf_counter()
 
     for k in range(max_iter):
-        # logger.info(f"Node {name} at iteration {k}: state: {algorithm.x_i}")
         algorithm.perform_iteration()
 
     end_time = time.perf_counter()
