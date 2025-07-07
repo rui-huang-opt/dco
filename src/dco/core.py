@@ -32,14 +32,14 @@ def solve_sync(
         **kwargs,
     )
 
-    logger = logging.getLogger("dco.solve_sync")
+    logger = logging.getLogger(f"dco.sync")
 
     logger.info(
-        f"Node {name} starting algorithm '{algorithm_name}' "
+        f"Starting algorithm '{algorithm_name}' "
         f"with parameters: alpha={alpha}, gamma={gamma}."
     )
 
-    logger.info(f"Node {name} initial state: {algorithm.x_i}")
+    logger.info(f"Initial state: {algorithm.x_i}")
 
     begin_time = time.perf_counter()
 
@@ -48,10 +48,10 @@ def solve_sync(
 
     end_time = time.perf_counter()
 
-    logger.info(f"Node {name} final state: {algorithm.x_i}")
+    logger.info(f"Final state: {algorithm.x_i}")
 
     logger.info(
-        f"Node {name} completed algorithm '{algorithm_name}' "
+        f"Completed algorithm '{algorithm_name}' "
         f"after {max_iter} iterations, "
         f"in {end_time - begin_time:.6f} seconds."
     )
