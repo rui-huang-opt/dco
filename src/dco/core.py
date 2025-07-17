@@ -44,7 +44,7 @@ def solve_sync(
     begin_time = time.perf_counter()
 
     for k in range(max_iter):
-        optimizer.perform_iteration()
+        optimizer.step()
 
     end_time = time.perf_counter()
 

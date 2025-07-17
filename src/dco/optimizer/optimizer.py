@@ -49,7 +49,7 @@ class Optimizer(metaclass=ABCMeta):
         return np.asarray(self._x_i)
 
     @abstractmethod
-    def perform_iteration(self): ...
+    def step(self): ...
 
     @classmethod
     def create(
@@ -86,7 +86,7 @@ class DGD(Optimizer, key="DGD"):
         super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._k = 0
 
-    def perform_iteration(self):
+    def step(self):
         delta_x_i = self._node_handle.laplacian(self._x_i)
         gamma_bar = self._gamma / (self._k + 1)
         grad_val = self._model.grad_f_i(self._x_i)
@@ -113,7 +113,7 @@ class EXTRA(Optimizer, key="EXTRA"):
             self._x_i - self._alpha * delta_x_i - self._gamma * self._grad_val
         )
 
-    def perform_iteration(self):
+    def step(self):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         p_i = self._new_z_i + new_x_i - self._x_i
 
@@ -143,7 +143,7 @@ class NIDS(Optimizer, key="NIDS"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._new_z_i = self._x_i - self._gamma * self._grad_val
 
-    def perform_iteration(self):
+    def step(self):
         new_x_i = self._model.prox_g(self._gamma, self._new_z_i)
         new_grad_val = self._model.grad_f_i(new_x_i)
 
@@ -179,7 +179,7 @@ class DIGing(Optimizer, key="DIGing"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
 
-    def perform_iteration(self):
+    def step(self):
         delta_x_i = self._node_handle.laplacian(self._x_i)
 
         new_x_i = self._x_i - self._alpha * delta_x_i - self._gamma * self._y_i
@@ -208,7 +208,7 @@ class AugDGM(Optimizer, key="AugDGM"):
         self._grad_val = self._model.grad_f_i(self._x_i)
         self._y_i = self._grad_val
 
-    def perform_iteration(self):
+    def step(self):
         s_i = self._x_i - self._gamma * self._y_i
 
         delta_s_i = self._node_handle.laplacian(s_i)
@@ -242,7 +242,7 @@ class RGT(Optimizer, key="RGT"):
         super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._y_i = self.initialize_array(y_i_init, model.dim)
 
-    def perform_iteration(self):
+    def step(self):
         p_i = self._x_i + self._y_i
 
         delta_p_i = self._node_handle.laplacian(p_i)
@@ -277,7 +277,7 @@ class WE(Optimizer, key="WE"):
         super().__init__(model, node_handle, alpha, gamma, z_i_init)
         self._y_i = self.initialize_array(y_i_init, model.dim)
 
-    def perform_iteration(self):
+    def step(self):
         p_i = self._x_i + self._y_i
 
         delta_p_i = self._node_handle.laplacian(p_i)
@@ -314,7 +314,7 @@ class RAugDGM(Optimizer, key="RAugDGM"):
         self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self):
+    def step(self):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._node_handle.laplacian(p_i)
@@ -350,7 +350,7 @@ class AtcWE(Optimizer, key="AtcWE"):
         self._y_i = self.initialize_array(y_i_init, model.dim)
         self._s_i = self._x_i - self._gamma * self._model.grad_f_i(self._x_i)
 
-    def perform_iteration(self):
+    def step(self):
         p_i = self._s_i + self._y_i
 
         delta_p_i = self._node_handle.laplacian(p_i)
