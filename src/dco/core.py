@@ -1,10 +1,10 @@
 import time
 import logging
 from multiprocessing.synchronize import Event, Barrier
-from numpy import float64, nan
+from numpy import float64
 from numpy.typing import NDArray
 from topolink import NodeHandle
-from .algorithm import Optimizer
+from .optimizer import Optimizer
 from .utils import Logger
 from .model import Model
 
