@@ -4,7 +4,7 @@ from multiprocessing.synchronize import Event, Barrier
 from numpy import float64, nan
 from numpy.typing import NDArray
 from topolink import NodeHandle
-from .algorithm import Algorithm
+from .algorithm import Optimizer
 from .utils import Logger
 from .model import Model
 
@@ -14,7 +14,7 @@ def solve_sync(
     model: Model,
     alpha: float,
     gamma: float,
-    algorithm_name: str = "RAugDGM",
+    algorithm: str = "RAugDGM",
     max_iter: int = 1000,
     server_address: str | None = None,
     *args,
@@ -22,8 +22,8 @@ def solve_sync(
 ) -> NDArray[float64]:
     node_handle = NodeHandle(name, server_address=server_address)
 
-    algorithm = Algorithm.create(
-        algorithm_name,
+    optimizer = Optimizer.create(
+        algorithm,
         model,
         node_handle,
         alpha,
@@ -35,28 +35,28 @@ def solve_sync(
     logger = logging.getLogger(f"dco.sync")
 
     logger.info(
-        f"Starting algorithm '{algorithm_name}' "
+        f"Starting algorithm '{algorithm}' "
         f"with parameters: alpha={alpha}, gamma={gamma}."
     )
 
-    logger.info(f"Initial state: {algorithm.x_i}")
+    logger.info(f"Initial state: {optimizer.x_i}")
 
     begin_time = time.perf_counter()
 
     for k in range(max_iter):
-        algorithm.perform_iteration()
+        optimizer.perform_iteration()
 
     end_time = time.perf_counter()
 
-    logger.info(f"Final state: {algorithm.x_i}")
+    logger.info(f"Final state: {optimizer.x_i}")
 
     logger.info(
-        f"Completed algorithm '{algorithm_name}' "
+        f"Completed algorithm '{algorithm}' "
         f"after {max_iter} iterations, "
         f"in {end_time - begin_time:.6f} seconds."
     )
 
-    return algorithm.x_i
+    return optimizer.x_i
 
 
 def solve_async(
@@ -64,7 +64,7 @@ def solve_async(
     alpha: float,
     gamma: float,
     stop_event: Event,
-    algorithm_name: str = "RAugDGM",
+    algorithm: str = "RAugDGM",
     wait_time: float = 0.0,
     sync_barrier: Barrier | None = None,
     global_stop_event: Event | None = None,

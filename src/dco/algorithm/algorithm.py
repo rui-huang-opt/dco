@@ -6,8 +6,8 @@ from ..utils import Registry
 from ..model import Model
 
 
-class Algorithm(metaclass=ABCMeta):
-    registry = Registry["Algorithm"]()
+class Optimizer(metaclass=ABCMeta):
+    registry = Registry["Optimizer"]()
 
     def __init_subclass__(cls, key: str | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -68,7 +68,7 @@ class Algorithm(metaclass=ABCMeta):
         )
 
 
-class DGD(Algorithm, key="DGD"):
+class DGD(Optimizer, key="DGD"):
     """
     Distributed Gradient Descent (DGD) algorithm.
     """
@@ -95,7 +95,7 @@ class DGD(Algorithm, key="DGD"):
         self._k += 1
 
 
-class EXTRA(Algorithm, key="EXTRA"):
+class EXTRA(Optimizer, key="EXTRA"):
     def __init__(
         self,
         model: Model,
@@ -129,7 +129,7 @@ class EXTRA(Algorithm, key="EXTRA"):
         self._new_z_i = new_new_z_i
 
 
-class NIDS(Algorithm, key="NIDS"):
+class NIDS(Optimizer, key="NIDS"):
     def __init__(
         self,
         model: Model,
@@ -163,7 +163,7 @@ class NIDS(Algorithm, key="NIDS"):
         self._new_z_i = new_new_z_i
 
 
-class DIGing(Algorithm, key="DIGing"):
+class DIGing(Optimizer, key="DIGing"):
     def __init__(
         self,
         model: Model,
@@ -194,7 +194,7 @@ class DIGing(Algorithm, key="DIGing"):
         self._y_i = new_y_i
 
 
-class AugDGM(Algorithm, key="AugDGM"):
+class AugDGM(Optimizer, key="AugDGM"):
     def __init__(
         self,
         model: Model,
@@ -229,7 +229,7 @@ class AugDGM(Algorithm, key="AugDGM"):
         self._y_i = new_y_i
 
 
-class RGT(Algorithm, key="RGT"):
+class RGT(Optimizer, key="RGT"):
     def __init__(
         self,
         model: Model,
@@ -264,7 +264,7 @@ class RGT(Algorithm, key="RGT"):
         self._y_i = new_y_i
 
 
-class WE(Algorithm, key="WE"):
+class WE(Optimizer, key="WE"):
     def __init__(
         self,
         model: Model,
@@ -299,7 +299,7 @@ class WE(Algorithm, key="WE"):
         self._y_i = new_y_i
 
 
-class RAugDGM(Algorithm, key="RAugDGM"):
+class RAugDGM(Optimizer, key="RAugDGM"):
     def __init__(
         self,
         model: Model,
@@ -335,7 +335,7 @@ class RAugDGM(Algorithm, key="RAugDGM"):
         self._y_i = new_y_i
 
 
-class AtcWE(Algorithm, key="AtcWE"):
+class AtcWE(Optimizer, key="AtcWE"):
     def __init__(
         self,
         model: Model,

@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from numpy.typing import NDArray
 from dco import Model, solve_sync
@@ -15,7 +14,7 @@ def dco_task(
     gamma: int | float,
     max_iter: int,
 ) -> None:
-    def f(var):
+    def f(var: NDArray[np.float64]) -> NDArray[np.float64]:
         return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
     model = Model(dim_i, f)
@@ -33,7 +32,6 @@ def dco_task(
 if __name__ == "__main__":
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
-    edge_pairs = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
 
     # Set parameters for ridge regression
     dim = 10
@@ -47,7 +45,6 @@ if __name__ == "__main__":
     v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
     # Distributed optimization
-    results = {}
     common_params = {"dim_i": dim, "rho_i": rho, "max_iter": 2000}
     algorithm_configs = {
         "EXTRA": {"alpha": 0.2, "gamma": 0.16},
