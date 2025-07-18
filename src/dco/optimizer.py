@@ -19,7 +19,6 @@ class Optimizer(metaclass=ABCMeta):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None,
         server_address: str | None = None,
@@ -27,7 +26,6 @@ class Optimizer(metaclass=ABCMeta):
         self._node_handle = NodeHandle(node_id, server_address=server_address)
         self._local_obj = local_obj
 
-        self._alpha = alpha
         self._gamma = gamma
 
         self._z_i = self.initialize_array(z_i_init, local_obj.dim)
@@ -59,7 +57,7 @@ class Optimizer(metaclass=ABCMeta):
 
         logger.info(
             f"Starting algorithm '{type(self).__name__}' "
-            f"with parameters: alpha={self._alpha}, gamma={self._gamma}."
+            f"with step size: gamma={self._gamma}."
         )
 
         logger.info(f"Initial state: {self.x_i}")
@@ -82,17 +80,16 @@ class Optimizer(metaclass=ABCMeta):
     @classmethod
     def create(
         cls,
-        key: str,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        algorithm: str = "RAugDGM",
         *args,
         **kwargs,
     ):
         return cls.registry.create(
-            key, node_id, local_obj, alpha, gamma, z_i_init, *args, **kwargs
+            algorithm, node_id, local_obj, gamma, z_i_init, *args, **kwargs
         )
 
 
@@ -105,13 +102,14 @@ class DGD(Optimizer, key="DGD"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
         if local_obj.g_type != "zero":
             raise ValueError("DGD cannot be used for composite problems.")
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._k = 0
 
@@ -129,11 +127,12 @@ class EXTRA(Optimizer, key="EXTRA"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         w_x_i = self._node_handle.weighted_mix(self._x_i)
 
@@ -161,11 +160,12 @@ class NIDS(Optimizer, key="NIDS"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._grad_val = self._local_obj.grad_f_i(self._x_i)
         self._new_z_i = self._x_i - self._gamma * self._grad_val
@@ -193,13 +193,14 @@ class DIGing(Optimizer, key="DIGing"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
         if local_obj.g_type != "zero":
             raise ValueError("DIGing cannot be used for composite problems.")
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._grad_val = self._local_obj.grad_f_i(self._x_i)
         self._y_i = self._grad_val
@@ -224,11 +225,12 @@ class AugDGM(Optimizer, key="AugDGM"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._grad_val = self._local_obj.grad_f_i(self._x_i)
         self._y_i = self._grad_val
@@ -261,12 +263,13 @@ class RGT(Optimizer, key="RGT"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
         y_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
 
     def step(self):
@@ -292,12 +295,13 @@ class WE(Optimizer, key="WE"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
         y_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
 
     def step(self):
@@ -323,12 +327,13 @@ class RAugDGM(Optimizer, key="RAugDGM"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
         y_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
         self._s_i = self._x_i - self._gamma * self._local_obj.grad_f_i(self._x_i)
@@ -358,12 +363,13 @@ class AtcWE(Optimizer, key="AtcWE"):
         self,
         node_id: str,
         local_obj: LocalObjective,
-        alpha: float,
         gamma: float,
         z_i_init: NDArray[float64] | None = None,
         y_i_init: NDArray[float64] | None = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(node_id, local_obj, alpha, gamma, z_i_init)
+        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
 
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
         self._s_i = self._x_i - self._gamma * local_obj.grad_f_i(self._x_i)

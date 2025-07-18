@@ -3,25 +3,6 @@ from numpy.typing import NDArray
 from dco import LocalObjective, Optimizer
 
 
-def dco_task(
-    algorithm: str,
-    u_i: NDArray[np.float64],
-    v_i: NDArray[np.float64],
-    n_name: str,
-    dim_i: int,
-    rho_i: float,
-    alpha: int | float,
-    gamma: int | float,
-    max_iter: int,
-) -> None:
-    def f(var: NDArray[np.float64]) -> NDArray[np.float64]:
-        return (u_i @ var - v_i) ** 2 + rho_i * var @ var
-
-    local_obj = LocalObjective(dim_i, f)
-    optimizer = Optimizer.create(algorithm, n_name, local_obj, alpha, gamma)
-    optimizer.solve_sync(max_iter)
-
-
 if __name__ == "__main__":
     # Create a simple graph
     node_names = ["1", "2", "3", "4"]
@@ -38,14 +19,13 @@ if __name__ == "__main__":
     v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
     # Distributed optimization
-    common_params = {"dim_i": dim, "rho_i": rho, "max_iter": 2000}
-    algorithm_configs = {
-        "EXTRA": {"alpha": 0.2, "gamma": 0.16},
-        "NIDS": {"alpha": 0.2, "gamma": 0.21},
-        "DIGing": {"alpha": 0.2, "gamma": 0.11},
-        "AugDGM": {"alpha": 0.2, "gamma": 0.31},
-        "WE": {"alpha": 0.2, "gamma": 0.17},
-        "RGT": {"alpha": 0.2, "gamma": 0.11},
+    stepsizes = {
+        "EXTRA": 0.16,
+        "NIDS": 0.21,
+        "DIGing": 0.11,
+        "AugDGM": 0.31,
+        "WE": 0.17,
+        "RGT": 0.11,
     }
 
     import sys
@@ -59,7 +39,13 @@ if __name__ == "__main__":
         print("Usage: python node.py <node_name>")
         sys.exit(1)
 
-    alg = "RGT"  # Default algorithm
-    params = common_params | algorithm_configs.get(alg, {})
+    algorithm = "RGT"  # Default algorithm
+    gamma = stepsizes[algorithm]
+    max_iter = 2000
 
-    dco_task(alg, u[node_name], v[node_name], node_name, **params)
+    def f(var: NDArray[np.float64]) -> NDArray[np.float64]:
+        return (u[node_name] @ var - v[node_name]) ** 2 + rho * var @ var
+
+    local_obj = LocalObjective(dim, f)
+    optimizer = Optimizer.create(node_name, local_obj, gamma, algorithm=algorithm)
+    optimizer.solve_sync(max_iter)
