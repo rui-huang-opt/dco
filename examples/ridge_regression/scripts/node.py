@@ -7,7 +7,7 @@ def dco_task(
     algorithm: str,
     u_i: NDArray[np.float64],
     v_i: NDArray[np.float64],
-    name: str,
+    n_name: str,
     dim_i: int,
     rho_i: float,
     alpha: int | float,
@@ -18,7 +18,7 @@ def dco_task(
         return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
     local_obj = LocalObjective(dim_i, f)
-    optimizer = Optimizer.create(algorithm, name, local_obj, alpha, gamma)
+    optimizer = Optimizer.create(algorithm, n_name, local_obj, alpha, gamma)
     optimizer.solve_sync(max_iter)
 
 
@@ -60,7 +60,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     alg = "RGT"  # Default algorithm
-    params = common_params.copy()
-    params.update(algorithm_configs.get(alg, {}))
+    params = common_params | algorithm_configs.get(alg, {})
 
     dco_task(alg, u[node_name], v[node_name], node_name, **params)
