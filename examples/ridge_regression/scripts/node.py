@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from dco import Model, solve_sync
+from dco import LocalObjective, Optimizer
 
 
 def dco_task(
@@ -17,16 +17,9 @@ def dco_task(
     def f(var: NDArray[np.float64]) -> NDArray[np.float64]:
         return (u_i @ var - v_i) ** 2 + rho_i * var @ var
 
-    model = Model(dim_i, f)
-
-    solve_sync(
-        name,
-        model,
-        alpha,
-        gamma,
-        algorithm,
-        max_iter,
-    )
+    local_obj = LocalObjective(dim_i, f)
+    optimizer = Optimizer.create(algorithm, name, local_obj, alpha, gamma)
+    optimizer.solve_sync(max_iter)
 
 
 if __name__ == "__main__":

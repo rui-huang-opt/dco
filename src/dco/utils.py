@@ -14,7 +14,7 @@ class Registry(Generic[T]):
             raise ValueError(f"Class with name '{key}' is already registered.")
         self._registry[key] = cls
 
-    def create(self, name: str, *args: Any, **kwargs: Any) -> T:
-        if name not in self._registry:
-            raise ValueError(f"Unknown {self.__class__.__name__}: {name}")
-        return self._registry[name](*args, **kwargs)
+    def create(self, key: str, *args: Any, **kwargs: Any) -> T:
+        if key not in self._registry:
+            raise ValueError(f"Unknown {self.__class__.__name__}: {key}")
+        return self._registry[key](*args, **kwargs)

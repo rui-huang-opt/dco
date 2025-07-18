@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.typing import NDArray
 from abc import ABCMeta, abstractmethod
-from ..utils import Registry
+from .utils import Registry
 
 
 class Regularizer(metaclass=ABCMeta):
