@@ -1,19 +1,20 @@
 from logging import getLogger
 from time import perf_counter
+from abc import ABCMeta, abstractmethod
+from typing import overload, Literal
 from numpy import float64, zeros, asarray, sqrt
 from numpy.typing import NDArray
-from abc import ABCMeta, abstractmethod
 from topolink import NodeHandle
 from .utils import Registry
 from .local_objective import LocalObjective
 
 
 class Optimizer(metaclass=ABCMeta):
-    registry = Registry["Optimizer"]()
+    _registry = Registry["Optimizer"]()
 
     def __init_subclass__(cls, key: str | None = None, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.registry.register(cls, key)
+        cls._registry.register(cls, key)
 
     def __init__(
         self,
@@ -52,7 +53,19 @@ class Optimizer(metaclass=ABCMeta):
     @abstractmethod
     def step(self): ...
 
-    def solve_sync(self, max_iter: int = 1000):
+    @overload
+    def solve_sync(
+        self, max_iter: int = 1000, with_history: Literal[False] = False
+    ) -> None: ...
+
+    @overload
+    def solve_sync(
+        self, max_iter: int = 1000, with_history: Literal[True] = True
+    ) -> NDArray[float64]: ...
+
+    def solve_sync(
+        self, max_iter: int = 1000, with_history: bool = False
+    ) -> NDArray[float64] | None:
         logger = getLogger(f"dco.sync")
 
         logger.info(
@@ -64,8 +77,15 @@ class Optimizer(metaclass=ABCMeta):
 
         begin_time = perf_counter()
 
-        for k in range(max_iter):
-            self.step()
+        if with_history:
+            history = zeros((max_iter, self._local_obj.dim), dtype=float64)
+            for i in range(max_iter):
+                history[i] = self.x_i
+                self.step()
+        else:
+            history = None
+            for _ in range(max_iter):
+                self.step()
 
         end_time = perf_counter()
 
@@ -76,6 +96,8 @@ class Optimizer(metaclass=ABCMeta):
             f"after {max_iter} iterations, "
             f"in {end_time - begin_time:.6f} seconds."
         )
+
+        return history
 
     @classmethod
     def create(
@@ -88,7 +110,7 @@ class Optimizer(metaclass=ABCMeta):
         *args,
         **kwargs,
     ):
-        return cls.registry.create(
+        return cls._registry.create(
             algorithm, node_id, local_obj, gamma, z_i_init, *args, **kwargs
         )
 
@@ -238,9 +260,8 @@ class AugDGM(Optimizer, key="AugDGM"):
     def step(self):
         s_i = self._x_i - self._gamma * self._y_i
 
-        w_s_i = self._node_handle.weighted_mix(s_i)
+        new_z_i = self._node_handle.weighted_mix(s_i)
 
-        new_z_i = w_s_i
         new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
         new_grad_val = self._local_obj.grad_f_i(new_x_i)
 
@@ -270,6 +291,7 @@ class RGT(Optimizer, key="RGT"):
         **kwargs,
     ):
         super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
 
     def step(self):
@@ -302,6 +324,7 @@ class WE(Optimizer, key="WE"):
         **kwargs,
     ):
         super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+
         self._y_i = self.initialize_array(y_i_init, local_obj.dim)
 
     def step(self):

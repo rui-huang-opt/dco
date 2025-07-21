@@ -16,16 +16,7 @@ x_tilde = {i: np.multiply(0.1 * (int(i) - 1), np.ones(dim)) for i in node_names}
 epsilon = {i: np.random.normal(0, 5) for i in node_names}
 v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
-# Distributed optimization
-stepsizes = {
-    "EXTRA": 0.16,
-    "NIDS": 0.21,
-    "DIGing": 0.11,
-    "AugDGM": 0.31,
-    "WE": 0.17,
-    "RGT": 0.11,
-}
-
+# Obtain node name from command line arguments
 import sys
 from logging import basicConfig, INFO
 
@@ -37,8 +28,18 @@ else:
     print("Usage: python node.py <node_name>")
     sys.exit(1)
 
-algorithm = "RGT"  # Default algorithm
-gamma = stepsizes[algorithm]
+# Distributed optimization
+step_sizes = {
+    "EXTRA": 0.16,
+    "NIDS": 0.21,
+    "DIGing": 0.11,
+    "AugDGM": 0.31,
+    "WE": 0.17,
+    "RGT": 0.11,
+}
+
+algorithm = "AugDGM"
+gamma = step_sizes[algorithm]
 max_iter = 2000
 
 

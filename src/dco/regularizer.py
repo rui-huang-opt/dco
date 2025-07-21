@@ -6,11 +6,11 @@ from .utils import Registry
 
 
 class Regularizer(metaclass=ABCMeta):
-    registry = Registry["Regularizer"]()
+    _registry = Registry["Regularizer"]()
 
     def __init_subclass__(cls, key: str, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.registry.register(cls, key)
+        cls._registry.register(cls, key)
 
     def __init__(self, lam: float):
         if lam <= 0:
@@ -35,7 +35,7 @@ class Regularizer(metaclass=ABCMeta):
 
     @classmethod
     def create(cls, key: str, lam: float, *args, **kwargs):
-        return cls.registry.create(key, lam, *args, **kwargs)
+        return cls._registry.create(key, lam, *args, **kwargs)
 
 
 class Zero(Regularizer, key="zero"):
