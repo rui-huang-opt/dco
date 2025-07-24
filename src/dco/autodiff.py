@@ -7,15 +7,19 @@ def grad(
     f: Callable[[NDArray[float64]], Any], backend: str
 ) -> Callable[[NDArray[float64]], NDArray[float64]]:
     if backend == "jax":
-        from jax import grad, jit, config
+        from jax import grad, jit, config, device_get
 
         config.update("jax_platforms", "cpu")
 
-        return jit(grad(f))
+        raw_grad = jit(grad(f))
+
+        def wrapped_grad(x: NDArray[float64]) -> NDArray[float64]:
+            return device_get(raw_grad(x))
+
+        return wrapped_grad
 
     elif backend == "autograd":
         from autograd import grad
-        import autograd.numpy as anp
 
         return grad(f)  # type: ignore
 

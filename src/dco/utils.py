@@ -1,4 +1,4 @@
-from typing import Type, TypeVar, Callable, Dict, Any, Generic
+from typing import Type, TypeVar, Dict, Any, Generic
 
 T = TypeVar("T")
 
@@ -14,7 +14,11 @@ class Registry(Generic[T]):
             raise ValueError(f"Class with name '{key}' is already registered.")
         self._registry[key] = cls
 
-    def create(self, key: str, *args: Any, **kwargs: Any) -> T:
+    def get_class(self, key: str) -> Type[T]:
         if key not in self._registry:
-            raise ValueError(f"Unknown {self.__class__.__name__}: {key}")
-        return self._registry[key](*args, **kwargs)
+            raise KeyError(f"Class '{key}' not found")
+        return self._registry[key]
+
+    def create(self, key: str, *args: Any, **kwargs: Any) -> T:
+        cls = self.get_class(key)
+        return cls(*args, **kwargs)

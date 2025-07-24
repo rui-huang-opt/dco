@@ -34,8 +34,8 @@ class Regularizer(metaclass=ABCMeta):
         self._lam = value
 
     @classmethod
-    def create(cls, key: str, lam: float, *args, **kwargs):
-        return cls._registry.create(key, lam, *args, **kwargs)
+    def create(cls, g_type: str, lam: float, *args, **kwargs):
+        return cls._registry.create(g_type, lam, *args, **kwargs)
 
 
 class Zero(Regularizer, key="zero"):

@@ -23,14 +23,29 @@ class Optimizer(metaclass=ABCMeta):
         gamma: float,
         z_i_init: NDArray[float64] | None,
         server_address: str | None = None,
+        noise_std: float | None = None,
     ):
-        self._node_handle = NodeHandle(node_id, server_address=server_address)
+        self._node_handle = NodeHandle.create(node_id, server_address, noise_std)
         self._local_obj = local_obj
 
         self._gamma = gamma
 
         self._z_i = self.initialize_array(z_i_init, local_obj.dim)
         self._x_i = local_obj.prox_g(gamma, self._z_i)
+
+    @classmethod
+    def create(
+        cls,
+        node_id: str,
+        local_obj: LocalObjective,
+        gamma: float,
+        *args,
+        **kwargs,
+    ) -> "Optimizer":
+        algorithm = kwargs.pop("algorithm", "RAugDGM")
+        return cls._registry.create(
+            algorithm, node_id, local_obj, gamma, *args, **kwargs
+        )
 
     @staticmethod
     def initialize_array(
@@ -98,21 +113,6 @@ class Optimizer(metaclass=ABCMeta):
         )
 
         return history
-
-    @classmethod
-    def create(
-        cls,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        algorithm: str = "RAugDGM",
-        *args,
-        **kwargs,
-    ):
-        return cls._registry.create(
-            algorithm, node_id, local_obj, gamma, z_i_init, *args, **kwargs
-        )
 
 
 class DGD(Optimizer, key="DGD"):
