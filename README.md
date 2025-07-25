@@ -1,163 +1,133 @@
-# 分布式复合优化
+# Distributed Composite Optimization (DCO)
+Distributed Composite Optimization (DCO) is a Python package for solving composite optimization problems of the form
 
-这个软件包提供了分布式复合优化的算法。
+$$
+\min_{x \in \mathbb{R}^d} \quad \frac{1}{n} \sum_{i=1}^n f_i(x) + g(x),
+$$
 
-## 安装
-### 1. 安装 Git（可选但推荐）
-建议执行这一步，无论下一步采取什么方法下载源代码，因为管理通信的包是放在远端 GitHub 里，通过 Git 直接安装会更方便。
+where each $f_i: \mathbb{R}^d \rightarrow \mathbb{R}$ is a smooth loss function associated with a local dataset or agent, and $g(x)$ is a (possibly non-smooth) regularization term. DCO enables efficient and robust distributed optimization across multiple nodes, making it suitable for federated learning, multi-agent systems, and large-scale machine learning tasks.
 
-#### Windows:
+This package contains the experimental code for the paper *A Unified Framework for Robust Distributed Optimization under Bounded Disturbances*.
 
-请按照[知乎](https://zhuanlan.zhihu.com/p/242540359)上的说明进行操作。
+## Features
 
-#### Linux:
+- Support for distributed and parallel optimization
+- Modular and extensible architecture
+- Formula-style API based on NumPy and autograd (JAX), allowing you to define and deploy distributed optimization algorithms across multiple machines as naturally as writing mathematical expressions
+
+## Installation
+Install via pip:
 
 ```bash
-sudo apt-get update
-sudo apt-get install git
+pip install git+https://github.com/rui-huang-opt/dco.git
 ```
 
-#### macOS:
+Or, for development:
 
-```bash
-brew install git
-```
-
-### 2. 下载源代码
-#### 方法一
-打开终端并运行以下命令：
 ```bash
 git clone https://github.com/rui-huang-opt/dco.git
+cd dco
+pip install -e .
 ```
 
-**注意：**
-由于目前仍是私人仓库，下载源码需联系 R.Huang@lboro.ac.uk 获取 token。
+## Usage Example
 
-#### 方法二
-通过压缩包解压。
+The typical workflow of DCO consists of two main steps:
 
-**注意：**
-如果之前未安装 Git，请额外前往 https://github.com/rui-huang-opt/gossip ，进入网页后点击右上角绿色按钮 Code，在展开的菜单里选择 Download ZIP，下载并解压得到源代码包 gossip。
+1. **Defining the network topology**: Specify the communication structure among nodes in the distributed system.
+2. **Defining the local problem at each node**: Set up the local objective function and related parameters for each node individually.
 
-### 3. 创建并激活虚拟环境（可选但推荐）
-创建虚拟环境可以帮助你将项目代码与全局的 Python 环境隔离开，防止包之间的冲突，因此推荐这样做。
-推荐在保存了源代码的文件夹
-```plaintext
-你保存了源代码的目录/
-├─ .venv
-├─ dco
-```
-或源代码根目录下创建
-```plaintext
-你保存了源代码的目录/
-├─ dco/
-│  ├─ .venv
-|  ├── ...
-```
-在进入相应目录后，执行：
+The following example demonstrates distributed ridge regression, where each node solves a local least squares problem with $\ell_2$ regularization:
 
-#### Windows:
+$$
+\min_{x \in \mathbb{R}^d} \quad \frac{1}{4} \sum_{i = 1}^4 (u_i^\top x - v_i)^2 + \rho \| x \|^2.
+$$
 
-```bash
-python -m venv env
-.\env\Scripts\activate
-```
+The distributed ridge regression problem can be efficiently addressed using the [`EXTRA (EXact firsT-ordeR Algorithm)`](https://epubs.siam.org/doi/abs/10.1137/14096668X):
 
-#### Linux and macOS:
+$$
+\mathbf{x}^{k + 2} = (I + W) \mathbf{x}^{k + 1} - \frac{I + W}{2} \mathbf{x}^k - \gamma [\nabla f(\mathbf{x}^{k + 1}) - \nabla f(\mathbf{x}^{k})],
+$$
 
-```bash
-python3 -m venv env
-source env/bin/activate
-```
+where $W$ is a symmetric mixing matrix determined by the network topology.
 
-### 4. 安装包及依赖
-在激活的虚拟环境中，进入 dco 包的根目录，并执行：
+Below are code templates for both steps
 
-```bash
-pip install .
-```
-**注意：**
-如果之前你没有安装 Git，请按照之前的教程下载 gossip 包的源码，并同样在同一个环境（虚拟环境或全局环境，只要与dco在同一个之下即可）下进入 gossip 根目录运行
-```bash
-pip install .
-```
+### 1. Specify the network topology (mixing matrix $W$) on the server
 
-### 5. 运行测试
-确保一切正常工作，运行以下命令进行测试：
-
-```bash
-cd tests
-python ridge_regression.py
-```
-结果会保存在同目录下的 figures 目录里。
-
-### 6. 使用
-对于问题
-
-$$\min_{\boldsymbol{x}\in\mathbb{R}^{n}}\frac{1}{N}\sum_{i=1}^{N
-}f_{i}(\boldsymbol{x})+g(\boldsymbol{x}),$$
-
-where:
-
-* $f_{i}$ is the local objective function specific to agent $i$ depending on its individual data or goals. Importantly, each agent knows only its own function fifi​ and does not have access to the objectives of other agents;
-* $g$ is a nonsmooth, convex regularizer that applies globally to the solution $\boldsymbol{x}$. This term enforces shared constraints or induces certain desirable properties in the solution, such as sparsity or robustness.
-
-#### 1） 建立节点间的通信
+The server only assists nodes in establishing connections to form an undirected graph network. It does not participate in communication during computation.
+For more details, please refer to the [`topolink`](https://github.com/rui-huang-opt/topolink) repository.
 
 ```python
-from gossip import creat_gossip_network
+import numpy as np
+from logging import basicConfig, INFO
+from topolink import Graph
 
-node_names = ["1", "2", "3", "4"]
-edge_pairs = [("1", "2"), ("2", "3"), ("2", "4")]
+basicConfig(level=INFO)
 
-communicators = create_gossip_network(node_names, edge_pairs)
+L = np.array([[2, -1, 0, -1], [-1, 2, -1, 0], [0, -1, 2, -1], [-1, 0, -1, 2]])
+W = np.eye(4) - L * 0.2
+
+graph = Graph.from_mixing_matrix(W)
+
+graph.deploy()
+
 ```
 
-如果你希望通信中存在噪声，可以设置噪声的方差，默认不加噪声
+### 2. Define the local optimization problem at each node
+Each node specifies its own data and parameters, such as the local feature vector `u_i`, target value `v_i`, regularization parameter `rho`, and the optimization step size.
+The local objective function `f_i(x_i)` is defined using these parameters as
+
+$$
+f_i(x_i) = (u_i^\top x_i - v_i)^2 + \rho \| x_i \|^2.
+$$
+
+The `LocalObjective` class allows you to specify the smooth part of the objective, and you can set the `g_type` parameter to include different types of regularization, such as `"zero"` (no regularization, default value), `"l1"` (L1 regularization), or others as needed.
+The `Optimizer` class is then used to set up and solve the optimization problem.
 
 ```python
-communicators = create_gossip_network(node_names, edge_pairs, noise_scale=0.005)
+# Configure logging to display INFO level messages
+from logging import basicConfig, INFO
+
+basicConfig(level=INFO)
+
+# Distributed optimization
+node_id = ...  # "1", "2", "3", or "4"
+u_i = ...
+v_i = ...
+rho = ...
+dimension = ...
+step_size = ...
+
+
+def f_i(x_i: NDArray[np.float64]) -> NDArray[np.float64]:
+    return (u_i @ x_i - v_i) ** 2 + rho * x_i @ x_i
+
+
+local_obj = LocalObjective(dimension, f_i)  # LocalObjective(dimension, f_i, g_type="zero")
+optimizer = Optimizer.create(node_id, local_obj, step_size, algorithm="EXTRA")
+optimizer.solve_sync(max_iter=500)
+
+print(f"Solution for node {node_id}: {optimizer.x_i}")
 ```
 
-#### 2） 构建问题模型
+> **Note:**  
+> If you do not specify the `server_address` parameter when creating the optimizer, you will be prompted to enter the graph server address after running the script.  
+>  
+> **Terminal output example:**  
+> `Please enter the server address (IP:Port):`
+>  
+> If you set the logging level to `INFO` on the server, the server will print its own address in the terminal.
 
-```python
-from dco import Model
+### Running Distributed Algorithms with Multiple Processes on a Single Machine
 
-models = {i: Model(dim=3, f_i=f[i], g_type="zero") for i in node_names}  # 这里的 f 是你创建的函数字典
-```
+If you do not have access to multiple machines, you can still experiment with and test distributed optimization algorithms by launching multiple processes on a single machine. Each process acts as an independent node and communicates with others via network ports.
+For implementation details and configuration examples, please refer to the sample code in the [`examples/notebooks`](./examples/notebooks/) directory.
 
-其中 **dim** 代表优化问题的变量维度，**f_i** 为局部目标函数，是一个输入参数为 numpy 一位数组，输出为标量的函数；可以指定正则项 **g** 的类型，目前有 "zero" 和 "l1"。
+## Documentation
 
-#### 3） 创建求解器
-```python
-from dco import Solver
+> **Note:** The detailed documentation is still in progress. You can refer to the [`examples`](./examples/) directory for sample code and additional usage information.
 
-solvers = [Solver(models[i], communicators[i]) for i in node_names]
-```
+## License
 
-#### 4） 将每个求解器传入一个进程里
-
-如果不知道 Python 如何创建进程具体参考 tests 目录里的的实现。
-
-#### 5） 启动所有进程，完成求解
-
-需要在每个进程里执行
-
-```python
-solver.solve(algorithm, alpha, gamma)
-```
-
-其中 algorithm 是指定算法的名称，包括 ```"EXTRA", "NIDS", "DIGing", "AugDGM", "RGT", "WE", "ADMM"``` 以及一些新的算法，暂时不要使用新算法。
-
-alpha 是通信网络的权重，每个节点可以设置不一样；gamma 是梯度下降的步长。
-
-此外可以设置最大迭代步长，默认 1000
-
-```python
-solver.solve(algorithm, alpha, gamma, max_iter=3000)
-```
-
-### 7. 注意
-由于采用多进程，推荐在 Linux 系统下运行代码，以获取更快的运行速度。
-如果使用 Windows 操作系统，推荐使用 [WSL](https://learn.microsoft.com/zh-cn/windows/wsl/install)。
+This project is licensed under the MIT License.

@@ -18,15 +18,17 @@ v = {i: u[i] @ x_tilde[i] + epsilon[i] for i in node_names}
 
 # Obtain node name from command line arguments
 import sys
-from logging import basicConfig, INFO
-
-basicConfig(level=INFO)
 
 if len(sys.argv) > 1:
     node_id = "".join(sys.argv[1:])
 else:
     print("Usage: python node.py <node_name>")
     sys.exit(1)
+
+# Configure logging to display INFO level messages
+from logging import basicConfig, INFO
+
+basicConfig(level=INFO)
 
 # Distributed optimization
 step_sizes = {
