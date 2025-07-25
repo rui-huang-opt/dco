@@ -43,7 +43,7 @@ $$
 \min_{x \in \mathbb{R}^d} \quad \frac{1}{4} \sum_{i = 1}^4 (u_i^\top x - v_i)^2 + \rho \| x \|^2.
 $$
 
-The distributed ridge regression problem can be efficiently addressed using the [`EXTRA (EXact firsT-ordeR Algorithm)`](https://epubs.siam.org/doi/abs/10.1137/14096668X):
+The distributed ridge regression problem can be efficiently addressed using the `EXTRA` (**EX**act firs**T**-orde**R** **A**lgorithm) [[1]](#references):
 
 $$
 \mathbf{x}^{k + 2} = (I + W) \mathbf{x}^{k + 1} - \frac{I + W}{2} \mathbf{x}^k - \gamma [\nabla f(\mathbf{x}^{k + 1}) - \nabla f(\mathbf{x}^{k})],
@@ -84,6 +84,24 @@ $$
 
 The `LocalObjective` class allows you to specify the smooth part of the objective, and you can set the `g_type` parameter to include different types of regularization, such as `"zero"` (no regularization, default value), `"l1"` (L1 regularization), or others as needed.
 The `Optimizer` class is then used to set up and solve the optimization problem.
+
+We use the `EXTRA` [[1]](#references) algorithm as an example here.
+The package also implements several other distributed optimization algorithms, including:
+
+- `DGD` (**D**istributed **G**radient **D**escent) [[2]](#references)
+- `NIDS` (**N**etwork **I**n**D**ependent **S**tep-size) [[3]](#references)
+- `DIGing` (**D**istributed **I**nexact **G**radient method and a gradient track**ing**) [[4]](#references)
+- `AugDGM` (**Aug**mented **D**istributed **G**radient **M**ethods) [[5]](#references)
+- `WE` (**W**ang-**E**lia) [[6]](#references)
+- `RGT` (**R**obust **G**radient **T**racking) [[7]](#references)
+
+In addition, the package includes two original algorithms proposed in our paper:
+
+- `RAugDGM`: A robust version of `AugDGM` algorithm and the `ATC` (**A**dapt-**T**hen-**C**ombine) versionl of `RGT` algorithm.
+- `AtcWE`: The `ATC` version of `WE` algorithm.
+
+You can select the algorithm by setting the `algorithm` parameter in the `Optimizer.create` method. If you do not specify the `algorithm` parameter, the default algorithm used is `"RAugDGM"`.
+Please fill in the details of the additional algorithms as needed.
 
 ```python
 # Configure logging to display INFO level messages
@@ -131,3 +149,19 @@ For implementation details and configuration examples, please refer to the sampl
 ## License
 
 This project is licensed under the MIT License.
+
+## References
+
+[1] [Shi, W., Ling, Q., Wu, G., & Yin, W. (2015). Extra: An exact first-order algorithm for decentralized consensus optimization. SIAM Journal on Optimization, 25(2), 944-966.](https://epubs.siam.org/doi/abs/10.1137/14096668X)
+
+[2] [Nedic, A., & Ozdaglar, A. (2009). Distributed subgradient methods for multi-agent optimization. IEEE Transactions on automatic control, 54(1), 48-61.](https://ieeexplore.ieee.org/abstract/document/4749425?casa_token=epANmmnAinUAAAAA:FX3PsEIp9OslefhUYQvZUqCWiOq71NulcjsRd3FmplTrI5eq1U9_R0sGm6mYaKnZkLBk6Jmvu8TB)
+
+[3] [Li, Z., Shi, W., & Yan, M. (2019). A decentralized proximal-gradient method with network independent step-sizes and separated convergence rates. IEEE Transactions on Signal Processing, 67(17), 4494-4506.](https://ieeexplore.ieee.org/abstract/document/8752033?casa_token=wuimAh5R6q4AAAAA:3H5eQjethbj18lYd7gFwxWJfpbIY9wrbnpdK0ngv4d9-pKAYnptBEOxd9t41SvwlG954NxsrR43b)
+
+[4] [Nedic, A., Olshevsky, A., & Shi, W. (2017). Achieving geometric convergence for distributed optimization over time-varying graphs. SIAM Journal on Optimization, 27(4), 2597-2633.](https://epubs.siam.org/doi/abs/10.1137/16M1084316)
+
+[5] [Xu, J., Zhu, S., Soh, Y. C., & Xie, L. (2015, December). Augmented distributed gradient methods for multi-agent optimization under uncoordinated constant stepsizes. In 2015 54th IEEE Conference on Decision and Control (CDC) (pp. 2055-2060). IEEE.](https://ieeexplore.ieee.org/abstract/document/7402509?casa_token=ZyrMzbDNhZAAAAAA:vUhyL-hMDY_rQdXk243Yqa4vR1LXX6SRa_kA1-P9uLuhIiYBj8GtLcXwQpSSYBnms9EQnBhWFz8o)
+
+[6] [Wang, J., & Elia, N. (2010, September). Control approach to distributed optimization. In 2010 48th Annual Allerton Conference on Communication, Control, and Computing (Allerton) (pp. 557-561). IEEE.](https://ieeexplore.ieee.org/abstract/document/5706956?casa_token=vvUwmPdgUZYAAAAA:4SkBjSGeMCioniqMTx9wj9I6eWCsQ3FyfZ08uFv6z3t0VVXEGVNBHh_Oz7shF2EdmtBy5psYV6EP)
+
+[7] [Pu, S. (2020, December). A robust gradient tracking method for distributed optimization over directed networks. In 2020 59th IEEE Conference on Decision and Control (CDC) (pp. 2335-2341). IEEE.](https://ieeexplore.ieee.org/abstract/document/9303917?casa_token=BCK5Zf8Tgx4AAAAA:DNJiCu2VQehdxeELc2i2enKSpKEE8SBcSIPIHlrfz4GFLE8DqjbYycqh3PNaY5NopFR9WyZV5G05)
