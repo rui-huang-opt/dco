@@ -14,7 +14,7 @@ authors = [
 
 dependencies = [
     "autograd>=1.7.0",
-    "topolink @ git+https://github.com/rui-huang-opt/topolink.git@0.2.0",
+    "topolink @ git+https://github.com/rui-huang-opt/topolink.git@0.1.0",
 ]
 
 [project.optional-dependencies]
