@@ -17,7 +17,7 @@ class Regularizer(metaclass=ABCMeta):
         self._lam = lam
 
     @abstractmethod
-    def __call__(self, x: NDArray[np.float64]) -> np.float64: ...
+    def __call__(self, x: NDArray[np.float64]) -> float: ...
 
     @abstractmethod
     def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]: ...
@@ -44,7 +44,7 @@ class Zero(Regularizer, key="zero"):
     def __init__(self, lam: float):
         super().__init__(lam)
 
-    def __call__(self, x: np.ndarray) -> float:
+    def __call__(self, x: NDArray[np.float64]) -> float:
         return 0
 
     def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -55,9 +55,39 @@ class L1(Regularizer, key="l1"):
     def __init__(self, lam: float):
         super().__init__(lam)
 
-    def __call__(self, x: np.ndarray) -> np.float64:
-        return (self._lam * norm(x, ord=1)).astype(np.float64)
+    def __call__(self, x: NDArray[np.float64]) -> float:
+        return (self._lam * norm(x, ord=1)).astype(float)
 
     def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
         threshold = tau * self._lam
         return np.multiply(np.sign(x), np.maximum(np.abs(x) - threshold, 0))
+
+
+class L2(Regularizer, key="l2"):
+    def __init__(self, lam: float):
+        super().__init__(lam)
+
+    def __call__(self, x: NDArray[np.float64]) -> float:
+        return (0.5 * self._lam * norm(x, ord=2) ** 2).astype(float)
+
+    def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        factor = 1 / (1 + tau * self._lam)
+        return factor * x
+
+
+class Box(Regularizer, key="box"):
+    def __init__(self, lam: float, lower_bound: float = -1.0, upper_bound: float = 1.0):
+        super().__init__(lam)
+        if lower_bound >= upper_bound:
+            raise ValueError("Lower bound must be less than upper bound.")
+        self._lower_bound = lower_bound
+        self._upper_bound = upper_bound
+
+    def __call__(self, x: NDArray[np.float64]) -> float:
+        if np.all(x >= self._lower_bound) and np.all(x <= self._upper_bound):
+            return 0.0
+        else:
+            return np.inf
+
+    def prox(self, tau: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        return np.clip(x, self._lower_bound, self._upper_bound)

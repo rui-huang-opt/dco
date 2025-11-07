@@ -54,6 +54,7 @@ step_sizes = {
 
 algorithm = "RAugDGM"
 gamma = step_sizes[algorithm]
+max_iter = 7000
 meas_i = meas[:, int(node_id) - 1]
 sens_loc_i = sens_loc[:, int(node_id) - 1]
 
@@ -68,13 +69,16 @@ def f(var: NDArray[np.float64]) -> Array:
 from dco import LossFunction, Optimizer
 
 loss_fn = LossFunction(f)
-optimizer = Optimizer.create(node_id, gamma, key=algorithm)
+optimizer = Optimizer.create(gamma, key=algorithm)
 
-max_iter = 7000
+from topolink import NodeHandle
+
+nh = NodeHandle(name=node_id)
 
 theta_i = np.zeros(2)
 
-for k in range(max_iter):
-    theta_i = optimizer.step(theta_i, loss_fn)
+optimizer.init(theta_i, loss_fn, nh)
 
-print(f"Node {node_id} solution: {theta_i}")
+for k in range(max_iter):
+    theta_i = optimizer.step(theta_i, loss_fn, nh)
+    print(f"Node {node_id} iteration {k}: theta = {theta_i}")

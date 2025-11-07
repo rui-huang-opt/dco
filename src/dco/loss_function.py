@@ -29,9 +29,27 @@ def grad(
 
 
 class LossFunction:
+    """
+    Represents a loss function composed of a differentiable part and a regularizer.
+
+    Parameters
+    ----------
+    f_i : Callable[[NDArray[float64]], float | Any]
+        The differentiable part of the loss function.
+
+    g_type : str, optional
+        The type of regularizer to use (default is "zero", which means no regularization).
+
+    lam : float, optional
+        The regularization parameter (default is 1.0).
+
+    backend : str, optional
+        The backend to use for automatic differentiation (default is "autograd").
+    """
+
     def __init__(
         self,
-        f_i: Callable[[NDArray[float64]], Any],
+        f_i: Callable[[NDArray[float64]], float | Any],
         g_type: str = "zero",
         lam: float = 1.0,
         backend: str = "autograd",
