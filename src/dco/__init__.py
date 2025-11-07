@@ -1,2 +1,4 @@
 from .optimizer import Optimizer
-from .local_objective import LocalObjective
+from .loss_function import LossFunction
+
+__all__ = ["Optimizer", "LossFunction"]

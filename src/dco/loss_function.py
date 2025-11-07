@@ -1,6 +1,7 @@
 from typing import Callable, Any
 from numpy import float64
 from numpy.typing import NDArray
+from .regularizer import Regularizer
 
 
 def grad(
@@ -25,3 +26,25 @@ def grad(
 
     else:
         raise ValueError(f"Unsupported backend: {backend}")
+
+
+class LossFunction:
+    def __init__(
+        self,
+        f_i: Callable[[NDArray[float64]], Any],
+        g_type: str = "zero",
+        lam: float = 1.0,
+        backend: str = "autograd",
+    ):
+        self._f_i = f_i
+        self._g_type = g_type
+        self._g = Regularizer.create(g_type, lam)
+        self.grad = grad(f_i, backend)
+        self.prox = self._g.prox
+
+    @property
+    def g_type(self) -> str:
+        return self._g_type
+
+    def __call__(self, x: NDArray[float64]) -> float:
+        return float(self._f_i(x) + self._g(x))

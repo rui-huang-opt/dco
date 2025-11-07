@@ -117,25 +117,30 @@ rho = ...
 dimension = ...
 step_size = ...
 
+from numpy import float64
+from numpy.typing import NDArray
 
-def f_i(x_i: NDArray[np.float64]) -> NDArray[np.float64]:
+
+def f_i(x_i: NDArray[float64]) -> NDArray[float64]:
     return (u_i @ x_i - v_i) ** 2 + rho * x_i @ x_i
 
 
-local_obj = LocalObjective(dimension, f_i)  # LocalObjective(dimension, f_i, g_type="zero")
-optimizer = Optimizer.create(node_id, local_obj, step_size, algorithm="EXTRA")
-optimizer.solve_sync(max_iter=500)
+from dco import LossFunction, Optimizer
 
-print(f"Solution for node {node_id}: {optimizer.x_i}")
+loss_fn = LossFunction(dimension, f_i)  # LossFunction(dimension, f_i, g_type="zero")
+optimizer = Optimizer.create(node_id, step_size, algorithm="EXTRA")
+
+from numpy import zeros
+
+x_i = zeros(dimension)
+
+optimizer.init(x_i, loss_fn)
+
+for k in range(500):
+    x_i = optimizer.step(x_i, loss_fn)
+
+print(f"Solution for node {node_id}: {x_i}")
 ```
-
-> **Note:**  
-> If you do not specify the `server_address` parameter when creating the optimizer, you will be prompted to enter the graph server address after running the script.  
->  
-> **Terminal output example:**  
-> `Please enter the server address (IP:Port):`
->  
-> If you set the logging level to `INFO` on the server, the server will print its own address in the terminal.
 
 ### Running Distributed Algorithms with Multiple Processes on a Single Machine
 

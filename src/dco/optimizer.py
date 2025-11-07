@@ -1,118 +1,46 @@
 from logging import getLogger
-from time import perf_counter
+
+logger = getLogger("dco.optimizer")
+
 from abc import ABCMeta, abstractmethod
-from typing import overload, Literal
-from numpy import float64, zeros, asarray, sqrt
+from numpy import float64, sqrt
 from numpy.typing import NDArray
 from topolink import NodeHandle
-from .utils import Registry
-from .local_objective import LocalObjective
+from .loss_function import LossFunction
 
 
 class Optimizer(metaclass=ABCMeta):
-    _registry = Registry["Optimizer"]()
+    _SUBCLASSES: dict[str, type["Optimizer"]] = {}
 
-    def __init_subclass__(cls, key: str | None = None, **kwargs):
+    def __init_subclass__(cls, key: str, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._registry.register(cls, key)
+        cls._SUBCLASSES[key] = cls
 
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None,
-        server_address: str | None = None,
-        noise_std: float | None = None,
-    ):
-        self._node_handle = NodeHandle.create(node_id, server_address, noise_std)
-        self._local_obj = local_obj
-
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        self._node_handle = NodeHandle(node_id, graph_name)
         self._gamma = gamma
-
-        self._z_i = self.initialize_array(z_i_init, local_obj.dim)
-        self._x_i = local_obj.prox_g(gamma, self._z_i)
+        self._aux_var: dict[str, NDArray[float64]] = {}
 
     @classmethod
     def create(
         cls,
         node_id: str,
-        local_obj: LocalObjective,
         gamma: float,
-        *args,
-        **kwargs,
+        graph_name: str = "default",
+        key: str = "RAugDGM",
     ) -> "Optimizer":
-        algorithm = kwargs.pop("algorithm", "RAugDGM")
-        return cls._registry.create(
-            algorithm, node_id, local_obj, gamma, *args, **kwargs
-        )
-
-    @staticmethod
-    def initialize_array(
-        array: NDArray[float64] | None, dimension: int
-    ) -> NDArray[float64]:
-        if array is None:
-            initialized_array = zeros(dimension)
-        elif array.shape == (dimension,):
-            initialized_array = array
-        else:
-            raise ValueError(f"Input array must have dimension {dimension}.")
-
-        return initialized_array
-
-    @property
-    def x_i(self) -> NDArray[float64]:
-        # Ensure x_i is a numpy array, not a autograd/jax array
-        return asarray(self._x_i)
+        Subclass = cls._SUBCLASSES.get(key)
+        if Subclass is None:
+            raise ValueError(f"Algorithm '{key}' is not registered.")
+        return Subclass(node_id, gamma, graph_name)
 
     @abstractmethod
-    def step(self): ...
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None: ...
 
-    @overload
-    def solve_sync(
-        self, max_iter: int = 1000, with_history: Literal[False] = False
-    ) -> None: ...
-
-    @overload
-    def solve_sync(
-        self, max_iter: int = 1000, with_history: Literal[True] = True
+    @abstractmethod
+    def step(
+        self, x_i: NDArray[float64], loss_fn: LossFunction
     ) -> NDArray[float64]: ...
-
-    def solve_sync(
-        self, max_iter: int = 1000, with_history: bool = False
-    ) -> NDArray[float64] | None:
-        logger = getLogger(f"dco.sync")
-
-        logger.info(
-            f"Starting algorithm '{type(self).__name__}' "
-            f"with step size: gamma={self._gamma}."
-        )
-
-        logger.info(f"Initial state: {self.x_i}")
-
-        begin_time = perf_counter()
-
-        if with_history:
-            history = zeros((max_iter, self._local_obj.dim), dtype=float64)
-            for i in range(max_iter):
-                history[i] = self.x_i
-                self.step()
-        else:
-            history = None
-            for _ in range(max_iter):
-                self.step()
-
-        end_time = perf_counter()
-
-        logger.info(f"Final state: {self.x_i}")
-
-        logger.info(
-            f"Completed algorithm '{type(self).__name__}' "
-            f"after {max_iter} iterations, "
-            f"in {end_time - begin_time:.6f} seconds."
-        )
-
-        return history
 
 
 class DGD(Optimizer, key="DGD"):
@@ -120,298 +48,249 @@ class DGD(Optimizer, key="DGD"):
     Distributed Gradient Descent (DGD) algorithm.
     """
 
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        if local_obj.g_type != "zero":
-            raise ValueError("DGD cannot be used for composite problems.")
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
         self._k = 0
 
-    def step(self):
-        w_x_i = self._node_handle.weighted_mix(self._x_i)
-        gamma_bar = self._gamma / sqrt(self._k + 1)
-        grad_val = self._local_obj.grad_f_i(self._x_i)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        if loss_fn.g_type != "zero":
+            err_msg = "DGD only supports loss functions without regularization."
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
-        self._x_i = w_x_i - gamma_bar * grad_val
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        w_x_i = self._node_handle.weighted_mix(x_i)
+        gamma_bar = self._gamma / sqrt(self._k + 1)
+        grad = loss_fn.grad(x_i)
+
+        new_x_i = w_x_i - gamma_bar * grad
         self._k += 1
+
+        return new_x_i
 
 
 class EXTRA(Optimizer, key="EXTRA"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        w_x_i = self._node_handle.weighted_mix(self._x_i)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        w_x_i = self._node_handle.weighted_mix(x_i)
+        self._aux_var["grad"] = loss_fn.grad(x_i)
+        self._aux_var["new_z_i"] = w_x_i - self._gamma * self._aux_var["grad"]
 
-        self._grad_val = self._local_obj.grad_f_i(self._x_i)
-        self._new_z_i = w_x_i - self._gamma * self._grad_val
-
-    def step(self):
-        new_x_i = self._local_obj.prox_g(self._gamma, self._new_z_i)
-        p_i = self._new_z_i + new_x_i - self._x_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        new_x_i = loss_fn.prox(self._gamma, self._aux_var["new_z_i"])
+        p_i = self._aux_var["new_z_i"] + new_x_i - x_i
 
         w_p_i = self._node_handle.weighted_mix(p_i)
-        new_grad_val = self._local_obj.grad_f_i(new_x_i)
+        new_grad = loss_fn.grad(new_x_i)
 
-        grad_diff = new_grad_val - self._grad_val
+        grad_diff = new_grad - self._aux_var["grad"]
 
         new_new_z_i = 0.5 * (p_i + w_p_i) - self._gamma * grad_diff
 
-        self._grad_val = new_grad_val
-        self._x_i = new_x_i
-        self._new_z_i = new_new_z_i
+        self._aux_var["grad"] = new_grad
+        self._aux_var["new_z_i"] = new_new_z_i
+
+        return new_x_i
 
 
 class NIDS(Optimizer, key="NIDS"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._grad_val = self._local_obj.grad_f_i(self._x_i)
-        self._new_z_i = self._x_i - self._gamma * self._grad_val
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["grad"] = loss_fn.grad(x_i)
+        self._aux_var["new_z_i"] = x_i - self._gamma * self._aux_var["grad"]
 
-    def step(self):
-        new_x_i = self._local_obj.prox_g(self._gamma, self._new_z_i)
-        new_grad_val = self._local_obj.grad_f_i(new_x_i)
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        new_x_i = loss_fn.prox(self._gamma, self._aux_var["new_z_i"])
+        new_grad = loss_fn.grad(new_x_i)
 
-        x_i_diff = new_x_i - self._x_i
-        grad_diff = new_grad_val - self._grad_val
+        x_i_diff = new_x_i - x_i
+        grad_diff = new_grad - self._aux_var["grad"]
 
-        p_i = self._new_z_i + x_i_diff - self._gamma * grad_diff
+        p_i = self._aux_var["new_z_i"] + x_i_diff - self._gamma * grad_diff
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
         new_new_z_i = 0.5 * (p_i + w_p_i)
 
-        self._grad_val = new_grad_val
-        self._x_i = new_x_i
-        self._new_z_i = new_new_z_i
+        self._aux_var["grad"] = new_grad
+        self._aux_var["new_z_i"] = new_new_z_i
+
+        return new_x_i
 
 
 class DIGing(Optimizer, key="DIGing"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        if local_obj.g_type != "zero":
-            raise ValueError("DIGing cannot be used for composite problems.")
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._grad_val = self._local_obj.grad_f_i(self._x_i)
-        self._y_i = self._grad_val
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        if loss_fn.g_type != "zero":
+            err_msg = "DIGing only supports loss functions without regularization."
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
-    def step(self):
-        w_x_i = self._node_handle.weighted_mix(self._x_i)
+        self._aux_var["grad"] = loss_fn.grad(x_i)
+        self._aux_var["y_i"] = self._aux_var["grad"]
 
-        new_x_i = w_x_i - self._gamma * self._y_i
-        new_grad_val = self._local_obj.grad_f_i(new_x_i)
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        w_x_i = self._node_handle.weighted_mix(x_i)
 
-        w_y_i = self._node_handle.weighted_mix(self._y_i)
+        new_x_i = w_x_i - self._gamma * self._aux_var["y_i"]
+        new_grad = loss_fn.grad(new_x_i)
 
-        new_y_i = w_y_i + new_grad_val - self._grad_val
+        w_y_i = self._node_handle.weighted_mix(self._aux_var["y_i"])
 
-        self._grad_val = new_grad_val
-        self._x_i = new_x_i
-        self._y_i = new_y_i
+        new_y_i = w_y_i + new_grad - self._aux_var["grad"]
+
+        self._aux_var["grad"] = new_grad
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i
 
 
 class AugDGM(Optimizer, key="AugDGM"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._grad_val = self._local_obj.grad_f_i(self._x_i)
-        self._y_i = self._grad_val
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["grad"] = loss_fn.grad(x_i)
+        self._aux_var["y_i"] = self._aux_var["grad"]
 
-    def step(self):
-        s_i = self._x_i - self._gamma * self._y_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        s_i = x_i - self._gamma * self._aux_var["y_i"]
 
         new_z_i = self._node_handle.weighted_mix(s_i)
 
-        new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
-        new_grad_val = self._local_obj.grad_f_i(new_x_i)
+        new_x_i = loss_fn.prox(self._gamma, new_z_i)
+        new_grad = loss_fn.grad(new_x_i)
 
-        grad_diff = new_grad_val - self._grad_val
+        grad_diff = new_grad - self._aux_var["grad"]
         new_prox_diff = (new_z_i - new_x_i) / self._gamma
 
-        p_i = self._y_i + grad_diff + new_prox_diff
+        p_i = self._aux_var["y_i"] + grad_diff + new_prox_diff
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
         new_y_i = w_p_i - new_prox_diff
 
-        self._grad_val = new_grad_val
-        self._x_i = new_x_i
-        self._y_i = new_y_i
+        self._aux_var["grad"] = new_grad
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i
+
+
+from numpy import zeros_like
 
 
 class RGT(Optimizer, key="RGT"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        y_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._y_i = self.initialize_array(y_i_init, local_obj.dim)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["y_i"] = zeros_like(x_i)
 
-    def step(self):
-        p_i = self._x_i + self._y_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        p_i = x_i + self._aux_var["y_i"]
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
-        new_z_i = w_p_i - self._gamma * self._local_obj.grad_f_i(self._x_i) - self._y_i
-        new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
+        new_z_i = w_p_i - self._gamma * loss_fn.grad(x_i) - self._aux_var["y_i"]
+        new_x_i = loss_fn.prox(self._gamma, new_z_i)
 
-        q_i = new_z_i - new_x_i + self._x_i
+        q_i = new_z_i - new_x_i + x_i
 
         w_q_i = self._node_handle.weighted_mix(q_i)
 
-        new_y_i = self._y_i - w_q_i + new_z_i
+        new_y_i = self._aux_var["y_i"] - w_q_i + new_z_i
 
-        self._x_i = new_x_i
-        self._y_i = new_y_i
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i
 
 
 class WE(Optimizer, key="WE"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        y_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._y_i = self.initialize_array(y_i_init, local_obj.dim)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["y_i"] = zeros_like(x_i)
 
-    def step(self):
-        p_i = self._x_i + self._y_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        p_i = x_i + self._aux_var["y_i"]
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
-        new_z_i = w_p_i - self._gamma * self._local_obj.grad_f_i(self._x_i) - self._y_i
-        new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
+        new_z_i = w_p_i - self._gamma * loss_fn.grad(x_i) - self._aux_var["y_i"]
+        new_x_i = loss_fn.prox(self._gamma, new_z_i)
 
-        q_i = new_z_i - new_x_i + self._x_i
+        q_i = new_z_i - new_x_i + x_i
 
         w_q_i = self._node_handle.weighted_mix(q_i)
 
-        new_y_i = self._y_i - w_q_i + q_i
+        new_y_i = self._aux_var["y_i"] - w_q_i + q_i
 
-        self._x_i = new_x_i
-        self._y_i = new_y_i
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i
 
 
 class RAugDGM(Optimizer, key="RAugDGM"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        y_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._y_i = self.initialize_array(y_i_init, local_obj.dim)
-        self._s_i = self._x_i - self._gamma * self._local_obj.grad_f_i(self._x_i)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["y_i"] = zeros_like(x_i)
+        self._aux_var["s_i"] = x_i - self._gamma * loss_fn.grad(x_i)
 
-    def step(self):
-        p_i = self._s_i + self._y_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        p_i = self._aux_var["s_i"] + self._aux_var["y_i"]
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
-        new_z_i = w_p_i - self._y_i
-        new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
-        new_s_i = new_x_i - self._gamma * self._local_obj.grad_f_i(new_x_i)
+        new_z_i = w_p_i - self._aux_var["y_i"]
+        new_x_i = loss_fn.prox(self._gamma, new_z_i)
+        new_s_i = new_x_i - self._gamma * loss_fn.grad(new_x_i)
 
-        q_i = new_z_i - new_s_i + self._s_i
+        q_i = new_z_i - new_s_i + self._aux_var["s_i"]
 
         w_q_i = self._node_handle.weighted_mix(q_i)
 
-        new_y_i = self._y_i - w_q_i + new_z_i
+        new_y_i = self._aux_var["y_i"] - w_q_i + new_z_i
 
-        self._x_i = new_x_i
-        self._s_i = new_s_i
-        self._y_i = new_y_i
+        self._aux_var["s_i"] = new_s_i
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i
 
 
 class AtcWE(Optimizer, key="AtcWE"):
-    def __init__(
-        self,
-        node_id: str,
-        local_obj: LocalObjective,
-        gamma: float,
-        z_i_init: NDArray[float64] | None = None,
-        y_i_init: NDArray[float64] | None = None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(node_id, local_obj, gamma, z_i_init, *args, **kwargs)
+    def __init__(self, node_id: str, gamma: float, graph_name: str):
+        super().__init__(node_id, gamma, graph_name)
 
-        self._y_i = self.initialize_array(y_i_init, local_obj.dim)
-        self._s_i = self._x_i - self._gamma * local_obj.grad_f_i(self._x_i)
+    def init(self, x_i: NDArray[float64], loss_fn: LossFunction) -> None:
+        self._aux_var["y_i"] = zeros_like(x_i)
+        self._aux_var["s_i"] = x_i - self._gamma * loss_fn.grad(x_i)
 
-    def step(self):
-        p_i = self._s_i + self._y_i
+    def step(self, x_i: NDArray[float64], loss_fn: LossFunction) -> NDArray[float64]:
+        p_i = self._aux_var["s_i"] + self._aux_var["y_i"]
 
         w_p_i = self._node_handle.weighted_mix(p_i)
 
-        new_z_i = w_p_i - self._y_i
-        new_x_i = self._local_obj.prox_g(self._gamma, new_z_i)
-        new_s_i = new_x_i - self._gamma * self._local_obj.grad_f_i(new_x_i)
+        new_z_i = w_p_i - self._aux_var["y_i"]
+        new_x_i = loss_fn.prox(self._gamma, new_z_i)
+        new_s_i = new_x_i - self._gamma * loss_fn.grad(new_x_i)
 
-        q_i = new_z_i - new_s_i + self._s_i
+        q_i = new_z_i - new_s_i + self._aux_var["s_i"]
 
         w_q_i = self._node_handle.weighted_mix(q_i)
 
-        new_y_i = self._y_i - w_q_i + q_i
+        new_y_i = self._aux_var["y_i"] - w_q_i + q_i
 
-        self._x_i = new_x_i
-        self._s_i = new_s_i
-        self._y_i = new_y_i
+        self._aux_var["s_i"] = new_s_i
+        self._aux_var["y_i"] = new_y_i
+
+        return new_x_i

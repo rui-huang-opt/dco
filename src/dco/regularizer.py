@@ -2,15 +2,14 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.typing import NDArray
 from abc import ABCMeta, abstractmethod
-from .utils import Registry
 
 
 class Regularizer(metaclass=ABCMeta):
-    _registry = Registry["Regularizer"]()
+    _SUBCLASSES: dict[str, type["Regularizer"]] = {}
 
     def __init_subclass__(cls, key: str, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._registry.register(cls, key)
+        cls._SUBCLASSES[key] = cls
 
     def __init__(self, lam: float):
         if lam <= 0:
@@ -35,7 +34,10 @@ class Regularizer(metaclass=ABCMeta):
 
     @classmethod
     def create(cls, g_type: str, lam: float, *args, **kwargs):
-        return cls._registry.create(g_type, lam, *args, **kwargs)
+        Subclass = cls._SUBCLASSES.get(g_type)
+        if Subclass is None:
+            raise ValueError(f"Regularizer '{g_type}' is not registered.")
+        return Subclass(lam, *args, **kwargs)
 
 
 class Zero(Regularizer, key="zero"):

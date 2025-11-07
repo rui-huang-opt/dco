@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.optimize import minimize, OptimizeResult
 from numpy.typing import NDArray
 from numpy.linalg import norm
 
@@ -66,10 +65,16 @@ def f(var: NDArray[np.float64]) -> Array:
     return jnp.mean(signal_diff**2) + regularizer
 
 
-from dco import LocalObjective, Optimizer
+from dco import LossFunction, Optimizer
 
-local_obj = LocalObjective(2, f, backend="jax")
+loss_fn = LossFunction(f)
+optimizer = Optimizer.create(node_id, gamma, key=algorithm)
 
-optimizer = Optimizer.create(node_id, local_obj, gamma, algorithm=algorithm)
+max_iter = 7000
 
-optimizer.solve_sync(max_iter=7000)
+theta_i = np.zeros(2)
+
+for k in range(max_iter):
+    theta_i = optimizer.step(theta_i, loss_fn)
+
+print(f"Node {node_id} solution: {theta_i}")
