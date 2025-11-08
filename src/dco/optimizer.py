@@ -113,9 +113,9 @@ class EXTRA(Optimizer, key="EXTRA"):
         w_p_i = self._ops.weighted_mix(p_i)
         new_grad = self._loss_fn.grad(new_x_i)
 
-        grad_diff = new_grad - self._aux_var["grad"]
+        diff_grad = new_grad - self._aux_var["grad"]
 
-        new_new_z_i = 0.5 * (p_i + w_p_i) - self._gamma * grad_diff
+        new_new_z_i = 0.5 * (p_i + w_p_i) - self._gamma * diff_grad
 
         self._aux_var["grad"] = new_grad
         self._aux_var["new_z_i"] = new_new_z_i
@@ -128,23 +128,20 @@ class NIDS(Optimizer, key="NIDS"):
         super().__init__(loss_fn, ops, gamma)
 
     def init(self, x_i: NDArray[float64]) -> None:
-        self._aux_var["grad"] = self._loss_fn.grad(x_i)
-        self._aux_var["new_z_i"] = x_i - self._gamma * self._aux_var["grad"]
+        self._aux_var["s_i"] = x_i - self._gamma * self._loss_fn.grad(x_i)
+        self._aux_var["new_z_i"] = self._aux_var["s_i"].copy()
 
     def step(self, x_i: NDArray[float64]) -> NDArray[float64]:
         new_x_i = self._loss_fn.prox(self._gamma, self._aux_var["new_z_i"])
-        new_grad = self._loss_fn.grad(new_x_i)
+        new_s_i = new_x_i - self._gamma * self._loss_fn.grad(new_x_i)
 
-        x_i_diff = new_x_i - x_i
-        grad_diff = new_grad - self._aux_var["grad"]
-
-        p_i = self._aux_var["new_z_i"] + x_i_diff - self._gamma * grad_diff
+        p_i = self._aux_var["new_z_i"] + new_s_i - self._aux_var["s_i"]
 
         w_p_i = self._ops.weighted_mix(p_i)
 
         new_new_z_i = 0.5 * (p_i + w_p_i)
 
-        self._aux_var["grad"] = new_grad
+        self._aux_var["s_i"] = new_s_i
         self._aux_var["new_z_i"] = new_new_z_i
 
         return new_x_i
@@ -161,7 +158,7 @@ class DIGing(Optimizer, key="DIGing"):
 
     def init(self, x_i: NDArray[float64]) -> None:
         self._aux_var["grad"] = self._loss_fn.grad(x_i)
-        self._aux_var["y_i"] = self._aux_var["grad"]
+        self._aux_var["y_i"] = self._aux_var["grad"].copy()
 
     def step(self, x_i: NDArray[float64]) -> NDArray[float64]:
         w_x_i = self._ops.weighted_mix(x_i)
@@ -184,27 +181,23 @@ class AugDGM(Optimizer, key="AugDGM"):
         super().__init__(loss_fn, ops, gamma)
 
     def init(self, x_i: NDArray[float64]) -> None:
-        self._aux_var["grad"] = self._loss_fn.grad(x_i)
-        self._aux_var["y_i"] = self._aux_var["grad"]
+        self._aux_var["s_i"] = x_i - self._gamma * self._loss_fn.grad(x_i)
+        self._aux_var["y_i"] = self._aux_var["s_i"].copy()
 
     def step(self, x_i: NDArray[float64]) -> NDArray[float64]:
-        s_i = x_i - self._gamma * self._aux_var["y_i"]
-
-        new_z_i = self._ops.weighted_mix(s_i)
+        new_z_i = self._ops.weighted_mix(self._aux_var["y_i"])
 
         new_x_i = self._loss_fn.prox(self._gamma, new_z_i)
-        new_grad = self._loss_fn.grad(new_x_i)
+        new_s_i = new_x_i - self._gamma * self._loss_fn.grad(new_x_i)
 
-        grad_diff = new_grad - self._aux_var["grad"]
-        new_prox_diff = (new_z_i - new_x_i) / self._gamma
-
-        p_i = self._aux_var["y_i"] + grad_diff + new_prox_diff
+        diff_s_i = new_s_i - self._aux_var["s_i"]
+        p_i = diff_s_i - new_z_i
 
         w_p_i = self._ops.weighted_mix(p_i)
 
-        new_y_i = w_p_i - new_prox_diff
+        new_y_i = w_p_i + new_z_i * 2
 
-        self._aux_var["grad"] = new_grad
+        self._aux_var["s_i"] = new_s_i
         self._aux_var["y_i"] = new_y_i
 
         return new_x_i
