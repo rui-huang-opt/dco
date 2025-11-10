@@ -167,10 +167,6 @@ print(f"Final solution for node {node_id}: {x_i}")
 If you do not have access to multiple machines, you can still experiment with and test distributed optimization algorithms by launching multiple processes on a single machine. Each process acts as an independent node and communicates with others via network ports.
 For implementation details and configuration examples, please refer to the sample code in the [`examples/notebooks`](./examples/notebooks/) directory.
 
-## Documentation
-
-> **Note:** The detailed documentation is still in progress. You can refer to the [`examples`](./examples/) directory for sample code and additional usage information.
-
 ## License
 
 This project is licensed under the MIT License.
