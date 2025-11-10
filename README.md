@@ -152,14 +152,10 @@ x_i = np.zeros(dimension)
 # Initialize optimizer (sets up internal variables using x_i)
 optimizer.init(x_i)
 
-
 # Optimization loop
 for k in range(500):
     x_i = optimizer.step(x_i)
-    if k % 100 == 0:
-        print(f"Step {k}, x_i = {x_i}")
-
-print(f"Final solution for node {node_id}: {x_i}")
+    print(f"Step {k}, x_{node_id} = {x_i}")
 ```
 
 ### Running Distributed Algorithms with Multiple Processes on a Single Machine
