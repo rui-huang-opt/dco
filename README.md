@@ -104,42 +104,62 @@ You can select the algorithm by setting the `algorithm` parameter in the `Optimi
 Please fill in the details of the additional algorithms as needed.
 
 ```python
-# Configure logging to display INFO level messages
-from logging import basicConfig, INFO
+# Distributed optimization example
 
+from logging import basicConfig, INFO
 basicConfig(level=INFO)
 
-# Distributed optimization
-node_id = ...  # "1", "2", "3", or "4"
-u_i = ...
-v_i = ...
-rho = ...
-dimension = ...
-step_size = ...
-
-from numpy import float64
+import numpy as np
 from numpy.typing import NDArray
+from dco import LossFunction, Optimizer
+from topolink import NodeHandle
 
+# Node-specific data (replace with your own)
+node_id = "1"
+u_i = np.array([1.0, 2.0, 3.0])
+v_i = np.array([1.0])
+rho = 0.1
+dimension = 3
+step_size = 0.01
 
-def f_i(x_i: NDArray[float64]) -> NDArray[float64]:
+# ===============================
+# Approach 1: Add regularization directly in the objective
+# ===============================
+def f_i_direct(x_i: NDArray[np.float64]) -> NDArray[np.float64]:
     return (u_i @ x_i - v_i) ** 2 + rho * x_i @ x_i
 
+loss_fn_direct = LossFunction(f_i_direct)
 
-from dco import LossFunction, Optimizer
+# ===============================
+# Approach 2: Use the L2 regularization parameter in LossFunction
+# ===============================
+def f_i_l2(x_i: NDArray[np.float64]) -> NDArray[np.float64]:
+    return (u_i @ x_i - v_i) ** 2
 
-loss_fn = LossFunction(dimension, f_i)  # LossFunction(dimension, f_i, g_type="zero")
-optimizer = Optimizer.create(node_id, step_size, algorithm="EXTRA")
+loss_fn_l2 = LossFunction(f_i_l2, g_type="l2", lam=rho)
 
-from numpy import zeros
+# Both approaches are equivalent; you can use either `loss_fn_direct` or `loss_fn_l2`
+loss_fn = loss_fn_l2  # choose one to run
 
-x_i = zeros(dimension)
+# Network handle
+nh = NodeHandle(node_id)
 
-optimizer.init(x_i, loss_fn)
+# Optimizer setup
+optimizer = Optimizer.create(loss_fn, nh, step_size, algorithm="EXTRA")
 
+x_i = np.zeros(dimension)
+
+# Initialize optimizer (sets up internal variables using x_i)
+optimizer.init(x_i)
+
+
+# Optimization loop
 for k in range(500):
-    x_i = optimizer.step(x_i, loss_fn)
+    x_i = optimizer.step(x_i)
+    if k % 100 == 0:
+        print(f"Step {k}, x_i = {x_i}")
 
-print(f"Solution for node {node_id}: {x_i}")
+print(f"Final solution for node {node_id}: {x_i}")
 ```
 
 ### Running Distributed Algorithms with Multiple Processes on a Single Machine
